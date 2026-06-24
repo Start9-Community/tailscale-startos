@@ -1,9 +1,8 @@
 *.s9pk
+startos/*.js
+node_modules/
 .DS_Store
 .vscode/
+docker-images
 javascript
-node_modules
-.pnpm-store/
-.startos-bin/
-.worktrees/
-gateway/tailscale-startos-gateway
+ncc-cache

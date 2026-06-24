@@ -1,25 +1,10 @@
 import { sdk } from '../sdk'
-import { addExposure } from './addExposure'
 import { addExposureFromUrl } from './addExposureFromUrl'
-import { editExposure } from './editExposure'
-import { refreshLoginLink } from './refreshLoginLink'
-import { refreshExposures } from './refreshExposures'
-import { removeExposure } from './removeExposure'
 import { removeExposureFromUrl } from './removeExposureFromUrl'
-import { setDeviceName } from './setDeviceName'
-import { showDeviceInfo } from './showDeviceInfo'
-import { showLoginLink } from './showLoginLink'
-import { showExposures } from './showExposures'
 
+// Both actions are hidden: they are invoked only from the StartOS url-v0 URL table
+// (add via the table's "Serve On Tailscale" button, remove via each exported row).
+// Signing in and managing the node happens in the Tailscale web interface.
 export const actions = sdk.Actions.of()
-  .addAction(setDeviceName)
-  .addAction(showDeviceInfo)
-  .addAction(showLoginLink)
-  .addAction(refreshLoginLink)
-  .addAction(addExposure)
   .addAction(addExposureFromUrl)
-  .addAction(editExposure)
-  .addAction(removeExposure)
   .addAction(removeExposureFromUrl)
-  .addAction(showExposures)
-  .addAction(refreshExposures)

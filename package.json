@@ -2,11 +2,11 @@
   "name": "tailscale-startos",
   "scripts": {
     "build": "rm -rf ./javascript && ncc build startos/index.ts -o ./javascript",
-    "prettier": "prettier --write startos .github/workflows/*.yml",
+    "prettier": "prettier --write startos",
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@start9labs/start-sdk": "1.0.0"
+    "@start9labs/start-sdk": "1.5.3"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",

@@ -4,17 +4,11 @@ import { long, short } from './i18n'
 export const manifest = setupManifest({
   id: 'tailscale',
   title: 'Tailscale',
-  license: 'MIT',
-  packageRepo: 'https://github.com/tobomobo/tailscale-startos',
+  license: 'BSD-3-Clause',
+  packageRepo: 'https://github.com/Start9-Community/tailscale-startos',
   upstreamRepo: 'https://github.com/tailscale/tailscale',
   marketingUrl: 'https://tailscale.com/',
   donationUrl: null,
-  docsUrls: [
-    'https://tailscale.com/docs/features/containers/docker/how-to/connect-docker-standalone',
-    'https://tailscale.com/docs/reference/tailscale-cli',
-    'https://tailscale.com/docs/features/client/device-web-interface',
-    'https://tailscale.com/kb/1346/start',
-  ],
   description: { short, long },
   volumes: ['main'],
   images: {

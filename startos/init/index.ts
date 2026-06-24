@@ -3,7 +3,8 @@ import { restoreInit } from '../backups'
 import { setDependencies } from '../dependencies'
 import { setInterfaces } from '../interfaces'
 import { sdk } from '../sdk'
-import { registerUrlPlugin, syncExportedUrls } from '../urlPlugin'
+import { registerUrlPlugin } from '../plugin/register'
+import { syncExportedUrls } from '../plugin/sync'
 import { versionGraph } from '../versions'
 
 export const init = sdk.setupInit(
