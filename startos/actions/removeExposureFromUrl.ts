@@ -48,8 +48,9 @@ export const removeExposureFromUrl = sdk.Action.withInput(
   // The platform fills urlPluginMetadata from the exported row; no prefill needed.
   async () => null,
   async ({ effects, input }) => {
-    const targetId = (input.urlPluginMetadata.info as { routeId?: string } | null)
-      ?.routeId
+    const targetId = (
+      input.urlPluginMetadata.info as { routeId?: string } | null
+    )?.routeId
     if (!targetId) return unsupportedTargetResult()
 
     const config = (await serveConfig.read().once()) ?? {

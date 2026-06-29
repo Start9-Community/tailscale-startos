@@ -118,8 +118,15 @@ export const main = sdk.setupMain(async ({ effects }) => {
       .get(effects, { packageId: route.packageId, id: route.interfaceId })
       .once()
     if (!iface?.addressInfo) continue
-    const scheme = targetSchemeFor(iface.addressInfo)
-    if (!scheme) continue
+    // TCP routes forward any port; the web modes need an HTTP(S) target for serve.
+    let scheme: string
+    if (route.mode === 'tcp') {
+      scheme = 'tcp'
+    } else {
+      const httpScheme = targetSchemeFor(iface.addressInfo)
+      if (!httpScheme) continue
+      scheme = httpScheme
+    }
     const containerIp = await sdk
       .getContainerIp(effects, { packageId: route.packageId })
       .once()
@@ -192,14 +199,23 @@ export const main = sdk.setupMain(async ({ effects }) => {
               `--https=${route.externalPort}`,
               target,
             ]
-          : [
-              'tailscale',
-              `--socket=${SOCKET}`,
-              'serve',
-              '--bg',
-              `--${route.mode === 'http' ? 'http' : 'https'}=${route.externalPort}`,
-              target,
-            ]
+          : route.mode === 'tcp'
+            ? [
+                'tailscale',
+                `--socket=${SOCKET}`,
+                'serve',
+                '--bg',
+                `--tcp=${route.externalPort}`,
+                target,
+              ]
+            : [
+                'tailscale',
+                `--socket=${SOCKET}`,
+                'serve',
+                '--bg',
+                `--${route.mode === 'http' ? 'http' : 'https'}=${route.externalPort}`,
+                target,
+              ]
       daemons = daemons.addOneshot(`apply-${route.id}` as never, {
         subcontainer: sub,
         exec: { command },

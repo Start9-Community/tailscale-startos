@@ -1,18 +1,18 @@
 import { IMPOSSIBLE, VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
-  version: '1.96.5:0',
+  version: '1.96.5:1',
   releaseNotes: {
     en_US:
-      'Initial release. Runs a Tailscale node on StartOS — sign it in from Tailscale’s own web interface, then expose selected StartOS service interfaces through it with Tailscale Serve (private, on your tailnet) or Funnel (public internet).',
+      'Adds a raw TCP serve mode. Non-web services such as LND or electrs can now be exposed over your tailnet by host:port, alongside the existing HTTP, HTTPS, and Funnel modes — choose “TCP” from a service’s “Serve On Tailscale” action.',
     es_ES:
-      'Versión inicial. Ejecuta un nodo de Tailscale en StartOS: inícialo desde la interfaz web de Tailscale y luego expón las interfaces de servicio de StartOS que elijas mediante Tailscale Serve (privado, en tu tailnet) o Funnel (internet público).',
+      'Añade un modo de servicio TCP sin procesar. Los servicios que no son web, como LND o electrs, ahora se pueden exponer en tu tailnet por host:puerto, junto con los modos HTTP, HTTPS y Funnel existentes: elige «TCP» en la acción «Servir en Tailscale» de un servicio.',
     de_DE:
-      'Erstveröffentlichung. Betreibt einen Tailscale-Knoten auf StartOS — melde ihn über die Weboberfläche von Tailscale an und stelle dann ausgewählte StartOS-Dienstschnittstellen darüber bereit, mit Tailscale Serve (privat, in deinem Tailnet) oder Funnel (öffentliches Internet).',
+      'Fügt einen rohen TCP-Bereitstellungsmodus hinzu. Nicht-Web-Dienste wie LND oder electrs können jetzt über host:port in deinem Tailnet bereitgestellt werden, zusätzlich zu den bestehenden Modi HTTP, HTTPS und Funnel — wähle „TCP“ in der Aktion „Über Tailscale bereitstellen“ eines Dienstes.',
     pl_PL:
-      'Wydanie początkowe. Uruchamia węzeł Tailscale w StartOS — zaloguj go w interfejsie webowym Tailscale, a następnie udostępniaj wybrane interfejsy usług StartOS przez Tailscale Serve (prywatnie, w twoim tailnecie) lub Funnel (publiczny internet).',
+      'Dodaje surowy tryb udostępniania TCP. Usługi inne niż webowe, takie jak LND lub electrs, można teraz udostępniać w tailnecie przez host:port, obok istniejących trybów HTTP, HTTPS i Funnel — wybierz „TCP” w akcji „Udostępnij przez Tailscale” danej usługi.',
     fr_FR:
-      'Version initiale. Exécute un nœud Tailscale sur StartOS — connectez-le depuis l’interface web de Tailscale, puis exposez les interfaces de service StartOS de votre choix via Tailscale Serve (privé, sur votre tailnet) ou Funnel (Internet public).',
+      'Ajoute un mode de service TCP brut. Les services non web comme LND ou electrs peuvent désormais être exposés sur votre tailnet par hôte:port, en plus des modes HTTP, HTTPS et Funnel existants — choisissez « TCP » dans l’action « Servir via Tailscale » d’un service.',
   },
   migrations: {
     up: async () => {},

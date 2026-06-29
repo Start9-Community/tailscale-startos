@@ -12,6 +12,11 @@
   served URL, reachability from a tailnet device):** previously confirmed end-to-end
   on a live host. Re-confirming it requires signing the node in to a real Tailscale
   account, which the automated pass can't do.
+- **TCP serve mode (v1.96.5:1):** builds, typechecks, and packs. It reuses the same
+  per-serve `socat` forwarder as the HTTP path and applies `tailscale serve
+  --tcp=<port> tcp://localhost:<localPort>`. The forwarder is already TCP, so only the
+  `--tcp` apply is new; like the HTTP serve apply above, exercising it end-to-end needs
+  a signed-in node (electrs/LND reachable from a tailnet device by `<magicdns>:<port>`).
 
 ## Resolved
 

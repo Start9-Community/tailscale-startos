@@ -11,8 +11,8 @@ const routeSchema = z.object({
   interfaceId: z.string(),
   packageTitle: z.string(),
   interfaceName: z.string(),
-  // https/http serve on the private tailnet; funnel publishes on the public internet
-  mode: z.enum(['https', 'http', 'funnel']),
+  // https/http/tcp serve on the private tailnet; funnel publishes on the public internet
+  mode: z.enum(['https', 'http', 'funnel', 'tcp']),
   externalPort: z.number().int().min(1).max(65535),
   // 127.0.0.1 port the in-container socat forwarder listens on (tailscale serve
   // only proxies to localhost, so every route needs a local forwarder)
@@ -56,6 +56,8 @@ export function serveModeLabel(mode: ServeMode): string {
       return 'HTTP'
     case 'funnel':
       return 'Funnel'
+    case 'tcp':
+      return 'TCP'
   }
 }
 

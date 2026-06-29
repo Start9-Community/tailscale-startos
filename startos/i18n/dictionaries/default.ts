@@ -17,9 +17,9 @@ const dict = {
   'Tailscale’s own web interface — sign this node in and manage it here.': 11,
   // actions/addExposureFromUrl.ts — metadata + input spec
   'Serve On Tailscale': 12,
-  'Serve this interface through this Tailscale node. Choose HTTPS or HTTP on your private tailnet, or Funnel to publish it on the public internet.': 13,
+  'Serve this interface through this Tailscale node — HTTPS or HTTP on your private tailnet, raw TCP for non-web services, or Funnel to publish it on the public internet.': 13,
   'Serve Mode': 14,
-  'HTTPS and HTTP keep this service on your private tailnet. Funnel publishes the same HTTPS endpoint on the PUBLIC INTERNET, reachable by anyone — only use it if that is what you want. Funnel is restricted to ports 443, 8443, and 10000.': 15,
+  'HTTPS, HTTP, and TCP keep this service on your private tailnet; use TCP for non-web services like LND or electrs. Funnel publishes the same HTTPS endpoint on the PUBLIC INTERNET, reachable by anyone — only use it if that is what you want. Funnel is restricted to ports 443, 8443, and 10000.': 15,
   'HTTPS (tailnet only, Tailscale-managed TLS)': 16,
   'HTTP (tailnet only, no TLS)': 17,
   'Funnel (PUBLIC HTTPS on the open internet)': 18,
@@ -29,7 +29,7 @@ const dict = {
   'Stop Tailscale Serve': 21,
   'Stop serving this interface through this Tailscale node.': 22,
   // actions/addExposureFromUrl.ts — results + errors
-  'That interface does not advertise HTTP, so it cannot be served through Tailscale.': 23,
+  'That interface does not advertise HTTP, so it can only be served over Tailscale in TCP mode.': 23,
   'That interface is already served with this mode and port.': 24,
   'Port ${port} is already in use by another Tailscale serve.': 25,
   'Funnel only accepts ports 443, 8443, and 10000. Pick one of those for a Funnel serve.': 26,
@@ -43,6 +43,9 @@ const dict = {
   'Tailscale Serve Removed': 33,
   'This node stops serving that interface over Tailscale within a few seconds.': 34,
   '${title} → ${iface} (${mode}, port ${port})': 35,
+  // actions/addExposureFromUrl.ts — TCP serve mode
+  'TCP (tailnet only, raw TCP passthrough)': 36,
+  'That interface can no longer be reached, so it cannot be served through Tailscale.': 37,
 } as const
 
 /**
