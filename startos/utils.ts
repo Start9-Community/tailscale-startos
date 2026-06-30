@@ -37,6 +37,8 @@ export function buildTailnetUrl(
   externalPort: number,
   dnsName: string,
 ): string {
+  // Raw TCP has no web scheme and no default port — always show host:port.
+  if (mode === 'tcp') return `tcp://${dnsName}:${externalPort}`
   const scheme = serveUsesTailnetTls(mode) ? 'https' : 'http'
   const defaultPort = scheme === 'https' ? 443 : 80
   const suffix = externalPort === defaultPort ? '' : `:${externalPort}`
@@ -48,6 +50,8 @@ export function exportPort(
   mode: ServeMode,
   externalPort: number,
 ): number | null {
+  // No default-port elision for TCP — the port is always meaningful.
+  if (mode === 'tcp') return externalPort
   const defaultPort = serveUsesTailnetTls(mode) ? 443 : 80
   return externalPort === defaultPort ? null : externalPort
 }

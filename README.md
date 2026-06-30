@@ -56,7 +56,7 @@ Because identity lives in `tailscaled.state` on this volume, normal updates and 
 
 - **`tailscaled`** — the node, in userspace-networking mode.
 - **`web`** — `tailscale web`, the upstream admin UI, exported as the package's interface (see below).
-- **`fwd-<id>`** — one `socat` forwarder per serve, bridging `127.0.0.1:<localPort>` → the target service's container IP. Tailscale Serve only proxies to localhost, so each serve needs one.
+- **`fwd-<id>`** — one `socat` forwarder per serve, bridging `127.0.0.1:<localPort>` → the target service's container IP. Tailscale Serve only proxies to localhost, so each serve — HTTP or raw TCP alike — needs one.
 - **`write-status` oneshot** — waits for the node to reach `Running`, then records `tailscale status` to the volume so the host can read the MagicDNS name for the URL exports. Runs even with no serves configured.
 - **`serve-reset` + `apply-<id>` oneshots** — once a serve exists, clear stale `tailscale serve` / `funnel` config and re-apply it for each serve.
 
@@ -88,7 +88,7 @@ The package registers the StartOS `url-v0` plugin and has **no directly-runnable
 | **Serve On Tailscale** (`add-serve-from-url`) | The **Serve On Tailscale** button on another service's URL list | Adds a serve for that interface (pick a [mode](#serve-modes) and published port). |
 | **Stop Tailscale Serve** (`remove-serve-from-url`) | The remove control on an exported row | Removes that serve. |
 
-Each active serve is exported back onto its own service's URL list, pointing at this node's MagicDNS name (marked public when it is a Funnel serve). Only interfaces that advertise HTTP(S) can be served.
+Each active serve is exported back onto its own service's URL list, pointing at this node's MagicDNS name (marked public when it is a Funnel serve). Interfaces that advertise HTTP(S) can be served over HTTPS, HTTP, or Funnel; any interface — including non-web ones — can also be served as raw **TCP**, reached at `<magicdns>:<port>`.
 
 ## Serve Modes
 
@@ -97,6 +97,7 @@ Each active serve is exported back onto its own service's URL list, pointing at 
 | **HTTPS** | Your tailnet, `https://<magicdns>[:port]` | Tailscale-managed TLS cert; requires HTTPS Certificates enabled on the tailnet. |
 | **HTTP** | Your tailnet, no TLS | For tailnets without HTTPS certificates enabled. |
 | **Funnel** | The **public internet** | Reachable by anyone. Restricted to ports 443, 8443, 10000; requires Funnel enabled for your tailnet. |
+| **TCP** | Your tailnet, `<magicdns>:port` | Raw TCP passthrough for non-web services (LND, electrs, …). Tailnet only — Tailscale does not Funnel raw TCP. The target keeps its own TLS, if any. |
 
 ## Backups and Restore
 
@@ -113,7 +114,7 @@ None.
 ## Limitations and Differences
 
 1. The package creates a Tailscale node **for itself** and serves selected interfaces from it. It does not turn the whole StartOS host into a subnet router, nor publish every installed service automatically.
-2. Only interfaces that advertise HTTP(S) can be served (Serve fronts HTTP/HTTPS endpoints). Raw TCP / TLS-terminated-TCP serves are not offered.
+2. HTTPS, HTTP, and Funnel modes require an interface that advertises HTTP(S) (Serve fronts HTTP/HTTPS endpoints). Raw **TCP** mode works for any interface as a plain passthrough (tailnet only); TLS-terminated-TCP serves are not offered.
 3. HTTPS and Funnel serves require the corresponding feature (HTTPS Certificates, Funnel) enabled for your tailnet in the Tailscale admin console; otherwise the serve fails to come up and the error appears in this package's logs.
 4. Adding or removing a serve briefly restarts the node (it reconnects automatically from saved state).
 
@@ -136,7 +137,7 @@ served_targets_reach: tailnet MagicDNS name (or Funnel public address), surfaced
 dependencies: none
 plugins: [url-v0]
 auth: interactive sign-in via the tailscale web UI (no auth key, no env vars)
-serve_modes: [https, http, funnel] # funnel = public internet, ports 443/8443/10000
+serve_modes: [https, http, funnel, tcp] # funnel = public internet, ports 443/8443/10000; tcp = raw passthrough, tailnet only, host:port
 actions:
   hidden: [add-serve-from-url, remove-serve-from-url] # invoked from the url-v0 table only
 runtime:

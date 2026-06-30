@@ -27,31 +27,52 @@ export const addExposureFromUrl = sdk.Action.withInput(
   async () => ({
     name: i18n('Serve On Tailscale'),
     description: i18n(
-      'Serve this interface through this Tailscale node. Choose HTTPS or HTTP on your private tailnet, or Funnel to publish it on the public internet.',
+      'Serve this interface through this Tailscale node — HTTPS or HTTP on your private tailnet, raw TCP for non-web services, or Funnel to publish it on the public internet.',
     ),
     warning: null,
     allowedStatuses: 'any',
     group: null,
     visibility: 'hidden',
   }),
-  async ({ prefill }) => {
+  async ({ effects, prefill }) => {
+    const metadata = (prefill as { urlPluginMetadata?: TableMetadata } | null)
+      ?.urlPluginMetadata
     // Default the published port to the target's own internal port.
-    const internalPort = (
-      prefill as { urlPluginMetadata?: { internalPort?: number } } | null
-    )?.urlPluginMetadata?.internalPort
+    const internalPort = metadata?.internalPort
+
+    // Web modes (HTTPS/HTTP/Funnel) need an HTTP(S) target; raw TCP forwards any
+    // port. Offer the web modes only when the target advertises HTTP, so a non-web
+    // service (LND, electrs, …) is offered TCP on its own.
+    let httpCapable = false
+    if (metadata) {
+      const iface = await sdk.serviceInterface
+        .get(effects, {
+          packageId: metadata.packageId,
+          id: metadata.interfaceId,
+        })
+        .once()
+      httpCapable = !!(iface?.addressInfo && targetSchemeFor(iface.addressInfo))
+    }
+
+    const tcpLabel = i18n('TCP (tailnet only, raw TCP passthrough)')
+    const values: Record<string, string> = httpCapable
+      ? {
+          https: i18n('HTTPS (tailnet only, Tailscale-managed TLS)'),
+          http: i18n('HTTP (tailnet only, no TLS)'),
+          funnel: i18n('Funnel (PUBLIC HTTPS on the open internet)'),
+          tcp: tcpLabel,
+        }
+      : { tcp: tcpLabel }
+
     return InputSpec.of({
       urlPluginMetadata: Value.hidden<TableMetadata>(),
       mode: Value.select({
         name: i18n('Serve Mode'),
         description: i18n(
-          'HTTPS and HTTP keep this service on your private tailnet. Funnel publishes the same HTTPS endpoint on the PUBLIC INTERNET, reachable by anyone — only use it if that is what you want. Funnel is restricted to ports 443, 8443, and 10000.',
+          'HTTPS, HTTP, and TCP keep this service on your private tailnet; use TCP for non-web services like LND or electrs. Funnel publishes the same HTTPS endpoint on the PUBLIC INTERNET, reachable by anyone — only use it if that is what you want. Funnel is restricted to ports 443, 8443, and 10000.',
         ),
-        default: 'https',
-        values: {
-          https: i18n('HTTPS (tailnet only, Tailscale-managed TLS)'),
-          http: i18n('HTTP (tailnet only, no TLS)'),
-          funnel: i18n('Funnel (PUBLIC HTTPS on the open internet)'),
-        },
+        default: httpCapable ? 'https' : 'tcp',
+        values,
       }),
       externalPort: Value.number({
         name: i18n('Published Port'),
@@ -82,10 +103,17 @@ export const addExposureFromUrl = sdk.Action.withInput(
     const iface = await sdk.serviceInterface
       .get(effects, { packageId: metadata.packageId, id: metadata.interfaceId })
       .once()
-    if (!iface?.addressInfo || !targetSchemeFor(iface.addressInfo)) {
+    if (!iface?.addressInfo) {
       throw new Error(
         i18n(
-          'That interface does not advertise HTTP, so it cannot be served through Tailscale.',
+          'That interface can no longer be reached, so it cannot be served through Tailscale.',
+        ),
+      )
+    }
+    if (mode !== 'tcp' && !targetSchemeFor(iface.addressInfo)) {
+      throw new Error(
+        i18n(
+          'That interface does not advertise HTTP, so it can only be served over Tailscale in TCP mode.',
         ),
       )
     }
