@@ -12,6 +12,11 @@
 - Tailscale's own web interface, for signing in and managing the node.
 - A **Serve On Tailscale** button on every other installed service's interface list, so you can expose those services through this node — privately over HTTPS, HTTP, or raw TCP, or publicly via Funnel.
 
+## Requirements & upgrade notes
+
+- **StartOS 0.4.0-beta.10 or later is required.** Serves now reach their target over StartOS's internal LXC bridge.
+- **You can now serve the StartOS admin UI itself** over Tailscale — click **Serve On Tailscale** on the StartOS UI's interface list. Before this release a serve for it was accepted but never actually forwarded traffic.
+
 ## Getting set up
 
 1. Start the service and open its **Tailscale Admin** interface (Tailscale's web UI).

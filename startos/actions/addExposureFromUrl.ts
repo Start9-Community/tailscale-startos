@@ -8,7 +8,7 @@ import {
   serveConfig,
   type ServeMode,
 } from '../fileModels/serveConfig'
-import { targetSchemeFor } from '../utils'
+import { findIface, targetSchemeFor } from '../utils'
 import { syncExportedUrls } from '../plugin/sync'
 
 const { InputSpec, Value } = sdk
@@ -45,12 +45,13 @@ export const addExposureFromUrl = sdk.Action.withInput(
     // service (LND, electrs, …) is offered TCP on its own.
     let httpCapable = false
     if (metadata) {
-      const iface = await sdk.serviceInterface
+      const host = await sdk.host
         .get(effects, {
+          hostId: metadata.hostId,
           packageId: metadata.packageId,
-          id: metadata.interfaceId,
         })
         .once()
+      const iface = findIface(host, metadata.interfaceId)
       httpCapable = !!(iface?.addressInfo && targetSchemeFor(iface.addressInfo))
     }
 
@@ -100,9 +101,10 @@ export const addExposureFromUrl = sdk.Action.withInput(
       )
     }
 
-    const iface = await sdk.serviceInterface
-      .get(effects, { packageId: metadata.packageId, id: metadata.interfaceId })
+    const host = await sdk.host
+      .get(effects, { hostId: metadata.hostId, packageId: metadata.packageId })
       .once()
+    const iface = findIface(host, metadata.interfaceId)
     if (!iface?.addressInfo) {
       throw new Error(
         i18n(
@@ -118,9 +120,12 @@ export const addExposureFromUrl = sdk.Action.withInput(
       )
     }
 
-    const manifest = await sdk
-      .getServiceManifest(effects, metadata.packageId)
-      .once()
+    // start-os (the OS admin UI) has no installed-package manifest, and
+    // getServiceManifest throws for a non-package id — guard it.
+    const manifest =
+      metadata.packageId === 'start-os'
+        ? null
+        : await sdk.getServiceManifest(effects, metadata.packageId).once()
     const config = (await serveConfig.read().once()) ?? {
       version: 1 as const,
       routes: [],
@@ -151,7 +156,10 @@ export const addExposureFromUrl = sdk.Action.withInput(
       id,
       packageId: metadata.packageId,
       interfaceId: metadata.interfaceId,
-      packageTitle: manifest?.title ?? metadata.packageId,
+      hostId: metadata.hostId,
+      packageTitle:
+        manifest?.title ??
+        (metadata.packageId === 'start-os' ? 'StartOS' : metadata.packageId),
       interfaceName: iface.name,
       mode,
       externalPort: input.externalPort,
