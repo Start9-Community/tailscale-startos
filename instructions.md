@@ -12,6 +12,10 @@
 - Tailscale's own web interface, for signing in and managing the node.
 - A **Serve On Tailscale** button on every other installed service's interface list, so you can expose those services through this node — privately over HTTPS, HTTP, or raw TCP, or publicly via Funnel.
 
+## Notes
+
+- **You can serve the StartOS admin UI itself** over Tailscale — click **Serve On Tailscale** on the StartOS UI's interface list.
+
 ## Getting set up
 
 1. Start the service and open its **Tailscale Admin** interface (Tailscale's web UI).

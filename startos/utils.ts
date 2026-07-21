@@ -1,5 +1,60 @@
+import { T, utils } from '@start9labs/start-sdk'
+import { sdk } from './sdk'
 import { STATUS_FILE_SUBPATH } from './fileModels/status'
 import { serveUsesTailnetTls, type ServeMode } from './fileModels/serveConfig'
+
+/** Find a filled interface by id across a resolved host's bindings. */
+export const findIface = (host: utils.FilledHost | null, interfaceId: string) =>
+  (host &&
+    Object.values(host.bindings)
+      .flatMap((b) => Object.values(b.interfaces))
+      .find((i) => i.id === interfaceId)) ||
+  undefined
+
+/**
+ * The target host for a serve route, over the LXC bridge. Prefers the `hostId`
+ * captured on the route (host-based — the normal path). A legacy route saved
+ * before the hostId was stored derives it once from the interface; that raw
+ * interface read is the only place `getServiceInterface` remains.
+ */
+export const routeHost = async (
+  effects: T.Effects,
+  route: { packageId: string; interfaceId: string; hostId?: string },
+) => {
+  let hostId = route.hostId
+  if (!hostId) {
+    const iface = await effects.getServiceInterface({
+      packageId: route.packageId,
+      serviceInterfaceId: route.interfaceId,
+    })
+    hostId = iface?.addressInfo?.hostId
+    if (!hostId) return null
+  }
+  return sdk.host.get(effects, { hostId, packageId: route.packageId }).once()
+}
+
+/**
+ * The IPv4 LXC-bridge `{ hostname, port }` for the interface on a binding of an
+ * already-resolved host. `<pkg>.startos` DNS and container IPs (getContainerIp)
+ * are deprecated; containers — and the OS admin UI (`start-os`/`admin`, which
+ * has no container of its own) — are reached over this bridge. `ssl` picks the
+ * https vs http variant. Returns `undefined` when the binding exports no
+ * bridge-reachable interface.
+ */
+export const bridgeHost = (
+  host: utils.FilledHost | null,
+  internalPort: number,
+  ssl: boolean,
+) => {
+  const binding = host?.bindings[internalPort]
+  const iface = binding && Object.values(binding.interfaces)[0]
+  return iface
+    ? iface.addressInfo.filter({
+        kind: 'bridge',
+        predicate: (h) => h.metadata.kind === 'ipv4' && h.ssl === ssl,
+      }).hostnames[0]
+    : undefined
+}
 
 // Runtime paths inside the container. The tailscaled socket lives on the `main`
 // volume so the daemon, the `tailscale web` UI, and the serve-apply oneshot all

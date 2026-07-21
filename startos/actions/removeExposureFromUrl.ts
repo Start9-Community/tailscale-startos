@@ -10,7 +10,7 @@ const { InputSpec, Value } = sdk
 const inputSpec = InputSpec.of({
   urlPluginMetadata: Value.hidden<{
     interfaceId: string
-    packageId: string | null
+    packageId: string
     hostId: string
     internalPort: number
     ssl: boolean

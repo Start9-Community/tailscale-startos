@@ -56,7 +56,7 @@ Because identity lives in `tailscaled.state` on this volume, normal updates and 
 
 - **`tailscaled`** — the node, in userspace-networking mode.
 - **`web`** — `tailscale web`, the upstream admin UI, exported as the package's interface (see below).
-- **`fwd-<id>`** — one `socat` forwarder per serve, bridging `127.0.0.1:<localPort>` → the target service's container IP. Tailscale Serve only proxies to localhost, so each serve — HTTP or raw TCP alike — needs one.
+- **`fwd-<id>`** — one `socat` forwarder per serve, bridging `127.0.0.1:<localPort>` → the target interface's LXC-bridge `host:port`. Tailscale Serve only proxies to localhost, so each serve — HTTP or raw TCP alike — needs one. Reaching the target over the bridge (rather than its container IP) is what lets a serve target the StartOS admin UI, which has no container of its own.
 - **`write-status` oneshot** — waits for the node to reach `Running`, then records `tailscale status` to the volume so the host can read the MagicDNS name for the URL exports. Runs even with no serves configured.
 - **`serve-reset` + `apply-<id>` oneshots** — once a serve exists, clear stale `tailscale serve` / `funnel` config and re-apply it for each serve.
 

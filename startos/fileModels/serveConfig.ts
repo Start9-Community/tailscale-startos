@@ -9,6 +9,10 @@ const routeSchema = z.object({
   id: z.string(),
   packageId: z.string(),
   interfaceId: z.string(),
+  // The interface's host id, captured at add-time from the url-v0 metadata so
+  // the runtime resolves the target via `sdk.host.get` with no fresh interface
+  // read. Optional: routes saved before it was stored fall back to deriving it.
+  hostId: z.string().optional(),
   packageTitle: z.string(),
   interfaceName: z.string(),
   // https/http/tcp serve on the private tailnet; funnel publishes on the public internet

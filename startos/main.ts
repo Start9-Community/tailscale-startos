@@ -1,5 +1,5 @@
-import type { HealthCheckResult } from '@start9labs/start-sdk/package/lib/health/checkFns'
-import { Daemons } from '@start9labs/start-sdk/package/lib/mainFn/Daemons'
+import type { HealthCheckResult } from '@start9labs/start-sdk/lib/health/checkFns'
+import { Daemons } from '@start9labs/start-sdk'
 import { i18n } from './i18n'
 import { manifest } from './manifest'
 import { sdk } from './sdk'
@@ -10,6 +10,9 @@ import {
   STATE_DIR,
   STATUS_FILE,
   WEB_UI_PORT,
+  bridgeHost,
+  findIface,
+  routeHost,
   targetSchemeFor,
 } from './utils'
 
@@ -20,7 +23,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
   // rebuilds the forwarder/apply set. The brief tailscaled reconnect on change is fine.
   const routes = (await serveConfig.read((c) => c.routes).const(effects)) ?? []
 
-  const sub = await sdk.SubContainer.of(
+  const sub = sdk.SubContainer.of(
     effects,
     { imageId: 'tailscale' },
     sdk.Mounts.of().mountVolume({
@@ -107,16 +110,20 @@ export const main = sdk.setupMain(async ({ effects }) => {
 
   // Resolve each saved serve to its live target and stand up one socat forwarder
   // per route (tailscale serve only proxies to localhost, so the forwarder bridges
-  // localhost:<localPort> -> <target container IP>:<internal port>).
+  // localhost:<localPort> -> the target's LXC-bridge <host>:<port>).
   const applicable: {
     route: (typeof routes)[number]
     scheme: string
     fwId: string
   }[] = []
   for (const route of routes) {
-    const iface = await sdk.serviceInterface
-      .get(effects, { packageId: route.packageId, id: route.interfaceId })
-      .once()
+    // Resolve the target over the LXC bridge (host-based via the route's stored
+    // hostId). Replaces getContainerIp — which returned null for the OS admin
+    // UI (`start-os` has no container), the reason Tailscale couldn't serve
+    // `start-os`/`admin-ui` before. `https+insecure` targets the OS-terminated
+    // SSL bridge port; http/tcp the plaintext one.
+    const host = await routeHost(effects, route)
+    const iface = findIface(host, route.interfaceId)
     if (!iface?.addressInfo) continue
     // TCP routes forward any port; the web modes need an HTTP(S) target for serve.
     let scheme: string
@@ -127,9 +134,12 @@ export const main = sdk.setupMain(async ({ effects }) => {
       if (!httpScheme) continue
       scheme = httpScheme
     }
-    const containerIp = await sdk
-      .getContainerIp(effects, { packageId: route.packageId })
-      .once()
+    const addr = bridgeHost(
+      host,
+      iface.addressInfo.internalPort,
+      scheme === 'https+insecure',
+    )
+    if (!addr) continue
 
     const fwId = `fwd-${route.id}`
     daemons = daemons.addDaemon(fwId as never, {
@@ -138,7 +148,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
         command: [
           'socat',
           `TCP-LISTEN:${route.localPort},fork,reuseaddr`,
-          `TCP:${containerIp}:${iface.addressInfo.internalPort}`,
+          `TCP:${addr.hostname}:${addr.port}`,
         ],
       },
       ready: {

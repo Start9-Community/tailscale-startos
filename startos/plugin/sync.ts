@@ -1,7 +1,7 @@
 import { sdk } from '../sdk'
 import { serveConfig, serveUsesTailnetTls } from '../fileModels/serveConfig'
 import { magicDnsName, statusFile } from '../fileModels/status'
-import { buildTailnetUrl, exportPort } from '../utils'
+import { buildTailnetUrl, exportPort, findIface, routeHost } from '../utils'
 import { removeExposureFromUrl } from '../actions/removeExposureFromUrl'
 
 // Mirrors the saved serves into the StartOS url-v0 table: each served interface
@@ -17,9 +17,8 @@ export const syncExportedUrls = sdk.plugin.url.setupExportedUrls(
     if (!dnsName) return
 
     for (const route of routes) {
-      const iface = await sdk.serviceInterface
-        .get(effects, { packageId: route.packageId, id: route.interfaceId })
-        .once()
+      const host = await routeHost(effects, route)
+      const iface = findIface(host, route.interfaceId)
       if (!iface?.addressInfo) continue
 
       await sdk.plugin.url
