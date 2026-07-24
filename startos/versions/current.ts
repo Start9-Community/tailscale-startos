@@ -1,7 +1,7 @@
 import { IMPOSSIBLE, VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
-  version: '1.98.9:0',
+  version: '1.98.9:1',
   releaseNotes: {
     en_US: `Updated Tailscale to 1.98.9.
 
