@@ -120,24 +120,24 @@ export const main = sdk.setupMain(async ({ effects }) => {
     // Resolve the target over the LXC bridge (host-based via the route's stored
     // hostId). Replaces getContainerIp — which returned null for the OS admin
     // UI (`start-os` has no container), the reason Tailscale couldn't serve
-    // `start-os`/`admin-ui` before. `https+insecure` targets the OS-terminated
-    // SSL bridge port; http/tcp the plaintext one.
+    // `start-os`/`admin-ui` before. `https+insecure` targets an SSL bridge port;
+    // the exact StartOS admin route uses that reachable endpoint in every mode.
     const host = await routeHost(effects, route)
     const iface = findIface(host, route.interfaceId)
     if (!iface?.addressInfo) continue
     const isStartOsAdmin =
       route.packageId === 'start-os' &&
-      route.hostId === 'admin' &&
+      iface.addressInfo.hostId === 'admin' &&
       route.interfaceId === 'admin-ui'
     // TCP routes forward any port; the web modes need an HTTP(S) target for serve.
     let scheme: string
     // The StartOS admin UI's plaintext bridge endpoint is a host-side DNAT to
     // loopback and is unreachable from this container when route_localnet is
     // disabled. Its SSL bridge endpoint is directly reachable instead.
-    if (isStartOsAdmin) {
-      scheme = 'https+insecure'
-    } else if (route.mode === 'tcp') {
+    if (route.mode === 'tcp') {
       scheme = 'tcp'
+    } else if (isStartOsAdmin) {
+      scheme = 'https+insecure'
     } else {
       const httpScheme = targetSchemeFor(iface.addressInfo)
       if (!httpScheme) continue
