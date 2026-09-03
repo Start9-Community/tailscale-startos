@@ -129,12 +129,12 @@ Once the node is running, the package records its status and its MagicDNS name b
 
 Adding a route restarts this service, since the forwarder set is rebuilt.
 
-Serving the StartOS admin UI is a special case: its advertised bridge port is
-a host-side DNAT to loopback and is not reachable from a service container, so
-the forwarder targets startd's real bridge listener instead. The Tailscale
-node's full MagicDNS name must also be registered in StartOS as a private domain
-before signing in through that address; request-signature validation rejects
-unrecognized domains.
+Serving the StartOS admin UI is a special case: its plaintext bridge endpoint
+is a host-side DNAT to loopback and is not reachable from a service container,
+so the forwarder uses the directly reachable SSL bridge endpoint instead. The
+Tailscale node's full MagicDNS name must also be registered in StartOS as a
+private domain before signing in through that address; request-signature
+validation rejects unrecognized domains.
 
 ## Actions
 

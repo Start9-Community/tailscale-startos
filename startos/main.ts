@@ -125,9 +125,18 @@ export const main = sdk.setupMain(async ({ effects }) => {
     const host = await routeHost(effects, route)
     const iface = findIface(host, route.interfaceId)
     if (!iface?.addressInfo) continue
+    const isStartOsAdmin =
+      route.packageId === 'start-os' &&
+      route.hostId === 'admin' &&
+      route.interfaceId === 'admin-ui'
     // TCP routes forward any port; the web modes need an HTTP(S) target for serve.
     let scheme: string
-    if (route.mode === 'tcp') {
+    // The StartOS admin UI's plaintext bridge endpoint is a host-side DNAT to
+    // loopback and is unreachable from this container when route_localnet is
+    // disabled. Its SSL bridge endpoint is directly reachable instead.
+    if (isStartOsAdmin) {
+      scheme = 'https+insecure'
+    } else if (route.mode === 'tcp') {
       scheme = 'tcp'
     } else {
       const httpScheme = targetSchemeFor(iface.addressInfo)
@@ -137,19 +146,9 @@ export const main = sdk.setupMain(async ({ effects }) => {
     const addr = bridgeHost(
       host,
       iface.addressInfo.internalPort,
-      scheme === 'https+insecure',
+      isStartOsAdmin || scheme === 'https+insecure',
     )
     if (!addr) continue
-
-    // The StartOS admin UI is hosted by startd on the bridge gateway itself.
-    // Its advertised bridge port is a host-side DNAT to loopback, which cannot
-    // be traversed from this container while route_localnet is disabled. Dial
-    // startd's real listener instead; regular package interfaces still use the
-    // allocated bridge port returned by the SDK.
-    const targetPort =
-      route.packageId === 'start-os'
-        ? iface.addressInfo.internalPort
-        : addr.port
 
     const fwId = `fwd-${route.id}`
     daemons = daemons.addDaemon(fwId as never, {
@@ -158,7 +157,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
         command: [
           'socat',
           `TCP-LISTEN:${route.localPort},fork,reuseaddr`,
-          `TCP:${addr.hostname}:${targetPort}`,
+          `TCP:${addr.hostname}:${addr.port}`,
         ],
       },
       ready: {
