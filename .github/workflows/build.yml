@@ -11,6 +11,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout services repository
+        uses: actions/checkout@v6
+
+      - name: Install package dependencies
+        run: npm ci
+
+      - name: Test route selection
+        run: npm test
+
   build:
     if: github.event.pull_request.draft == false
     uses: Start9Labs/start-technologies/.github/workflows/build.yml@master

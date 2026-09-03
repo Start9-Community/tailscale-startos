@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "target": "ES2022",
+    "outDir": ".test-dist",
+    "rootDir": ".",
+    "noEmit": false,
+    "declaration": false,
+    "sourceMap": false,
+    "verbatimModuleSyntax": false,
+    "ignoreDeprecations": "6.0"
+  },
+  "include": ["startos/routeTarget.ts", "startos/routeTarget.test.ts"]
+}

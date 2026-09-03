@@ -4,6 +4,7 @@ import { i18n } from './i18n'
 import { manifest } from './manifest'
 import { sdk } from './sdk'
 import { serveConfig } from './fileModels/serveConfig'
+import { resolveRouteTarget } from './routeTarget'
 import {
   DEVICE_NAME,
   SOCKET,
@@ -13,7 +14,6 @@ import {
   bridgeHost,
   findIface,
   routeHost,
-  targetSchemeFor,
 } from './utils'
 
 const TS = `tailscale --socket=${SOCKET}`
@@ -125,29 +125,10 @@ export const main = sdk.setupMain(async ({ effects }) => {
     const host = await routeHost(effects, route)
     const iface = findIface(host, route.interfaceId)
     if (!iface?.addressInfo) continue
-    const isStartOsAdmin =
-      route.packageId === 'start-os' &&
-      iface.addressInfo.hostId === 'admin' &&
-      route.interfaceId === 'admin-ui'
-    // TCP routes forward any port; the web modes need an HTTP(S) target for serve.
-    let scheme: string
-    // The StartOS admin UI's plaintext bridge endpoint is a host-side DNAT to
-    // loopback and is unreachable from this container when route_localnet is
-    // disabled. Its SSL bridge endpoint is directly reachable instead.
-    if (route.mode === 'tcp') {
-      scheme = 'tcp'
-    } else if (isStartOsAdmin) {
-      scheme = 'https+insecure'
-    } else {
-      const httpScheme = targetSchemeFor(iface.addressInfo)
-      if (!httpScheme) continue
-      scheme = httpScheme
-    }
-    const addr = bridgeHost(
-      host,
-      iface.addressInfo.internalPort,
-      isStartOsAdmin || scheme === 'https+insecure',
-    )
+    const target = resolveRouteTarget(route, iface.addressInfo)
+    if (!target) continue
+    const { scheme, useSslBridge } = target
+    const addr = bridgeHost(host, iface.addressInfo.internalPort, useSslBridge)
     if (!addr) continue
 
     const fwId = `fwd-${route.id}`
