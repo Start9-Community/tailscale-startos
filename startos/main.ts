@@ -141,6 +141,16 @@ export const main = sdk.setupMain(async ({ effects }) => {
     )
     if (!addr) continue
 
+    // The StartOS admin UI is hosted by startd on the bridge gateway itself.
+    // Its advertised bridge port is a host-side DNAT to loopback, which cannot
+    // be traversed from this container while route_localnet is disabled. Dial
+    // startd's real listener instead; regular package interfaces still use the
+    // allocated bridge port returned by the SDK.
+    const targetPort =
+      route.packageId === 'start-os'
+        ? iface.addressInfo.internalPort
+        : addr.port
+
     const fwId = `fwd-${route.id}`
     daemons = daemons.addDaemon(fwId as never, {
       subcontainer: sub,
@@ -148,7 +158,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
         command: [
           'socat',
           `TCP-LISTEN:${route.localPort},fork,reuseaddr`,
-          `TCP:${addr.hostname}:${addr.port}`,
+          `TCP:${addr.hostname}:${targetPort}`,
         ],
       },
       ready: {
