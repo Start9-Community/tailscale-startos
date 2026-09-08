@@ -38,8 +38,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
   const checkTailscaleHealth = async (): Promise<HealthCheckResult> => {
     const res = await sub.exec(
       ['tailscale', `--socket=${SOCKET}`, 'status', '--json'],
-      {},
-      5000,
+      { timeout: 5000 },
     )
     if (res.exitCode !== 0) {
       return { result: 'failure', message: i18n('Tailscaled is not ready') }
@@ -118,10 +117,8 @@ export const main = sdk.setupMain(async ({ effects }) => {
   }[] = []
   for (const route of routes) {
     // Resolve the target over the LXC bridge (host-based via the route's stored
-    // hostId). Replaces getContainerIp — which returned null for the OS admin
-    // UI (`start-os` has no container), the reason Tailscale couldn't serve
-    // `start-os`/`admin-ui` before. `https+insecure` targets the OS-terminated
-    // SSL bridge port; http/tcp the plaintext one.
+    // hostId). `https+insecure` targets the OS-terminated SSL bridge port;
+    // http/tcp the plaintext one.
     const host = await routeHost(effects, route)
     const iface = findIface(host, route.interfaceId)
     if (!iface?.addressInfo) continue
@@ -198,7 +195,8 @@ export const main = sdk.setupMain(async ({ effects }) => {
     })
 
     for (const { route, scheme, fwId } of applicable) {
-      const target = `${scheme}://localhost:${route.localPort}`
+      // An IP literal sends no SNI — the only thing an SSL bridge port answers.
+      const target = `${scheme}://127.0.0.1:${route.localPort}`
       const command: [string, ...string[]] =
         route.mode === 'funnel'
           ? [
