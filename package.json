@@ -1,25 +1,7 @@
 {
   "name": "tailscale-startos",
-  "scripts": {
-    "build": "rm -rf ./javascript && ncc build startos/index.ts -o ./javascript",
-    "prettier": "prettier --write startos",
-    "check": "tsc --noEmit",
-    "test": "rm -rf .test-dist && tsc -p tsconfig.test.json && node --test .test-dist/startos/routeTarget.test.js && rm -rf .test-dist"
-  },
   "dependencies": {
-    "@start9labs/start-sdk": "2.0.9"
-  },
-  "devDependencies": {
-    "@types/node": "^22.19.7",
-    "@vercel/ncc": "^0.38.4",
-    "prettier": "^3.8.1",
-    "typescript": "^6.0.3"
-  },
-  "prettier": {
-    "trailingComma": "all",
-    "tabWidth": 2,
-    "semi": false,
-    "singleQuote": true
+    "@start9labs/start-sdk": "3.0.0"
   },
   "overrides": {
     "@start9labs/start-sdk": "$@start9labs/start-sdk"

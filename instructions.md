@@ -14,7 +14,7 @@
 
 ## Notes
 
-- **You can serve the StartOS admin UI itself** over Tailscale — click **Serve On Tailscale** on the StartOS UI's interface list. Before signing in through the Tailscale address, add the node's full MagicDNS name (shown in the Tailscale Admin interface) to StartOS as a private domain; StartOS otherwise rejects the login request because the domain is not a recognized server identity.
+- **You can serve the StartOS admin UI itself** over Tailscale — click **Serve On Tailscale** on the StartOS UI's interface list.
 
 ## Getting set up
 

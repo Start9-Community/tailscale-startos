@@ -4,7 +4,6 @@ import { i18n } from './i18n'
 import { manifest } from './manifest'
 import { sdk } from './sdk'
 import { serveConfig } from './fileModels/serveConfig'
-import { resolveRouteTarget } from './routeTarget'
 import {
   DEVICE_NAME,
   SOCKET,
@@ -14,6 +13,7 @@ import {
   bridgeHost,
   findIface,
   routeHost,
+  targetSchemeFor,
 } from './utils'
 
 const TS = `tailscale --socket=${SOCKET}`
@@ -38,8 +38,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
   const checkTailscaleHealth = async (): Promise<HealthCheckResult> => {
     const res = await sub.exec(
       ['tailscale', `--socket=${SOCKET}`, 'status', '--json'],
-      {},
-      5000,
+      { timeout: 5000 },
     )
     if (res.exitCode !== 0) {
       return { result: 'failure', message: i18n('Tailscaled is not ready') }
@@ -118,17 +117,25 @@ export const main = sdk.setupMain(async ({ effects }) => {
   }[] = []
   for (const route of routes) {
     // Resolve the target over the LXC bridge (host-based via the route's stored
-    // hostId). Replaces getContainerIp — which returned null for the OS admin
-    // UI (`start-os` has no container), the reason Tailscale couldn't serve
-    // `start-os`/`admin-ui` before. `https+insecure` targets an SSL bridge port;
-    // the exact StartOS admin route uses that reachable endpoint in every mode.
+    // hostId). `https+insecure` targets the OS-terminated SSL bridge port;
+    // http/tcp the plaintext one.
     const host = await routeHost(effects, route)
     const iface = findIface(host, route.interfaceId)
     if (!iface?.addressInfo) continue
-    const target = resolveRouteTarget(route, iface.addressInfo)
-    if (!target) continue
-    const { scheme, useSslBridge } = target
-    const addr = bridgeHost(host, iface.addressInfo.internalPort, useSslBridge)
+    // TCP routes forward any port; the web modes need an HTTP(S) target for serve.
+    let scheme: string
+    if (route.mode === 'tcp') {
+      scheme = 'tcp'
+    } else {
+      const httpScheme = targetSchemeFor(iface.addressInfo)
+      if (!httpScheme) continue
+      scheme = httpScheme
+    }
+    const addr = bridgeHost(
+      host,
+      iface.addressInfo.internalPort,
+      scheme === 'https+insecure',
+    )
     if (!addr) continue
 
     const fwId = `fwd-${route.id}`
@@ -188,7 +195,8 @@ export const main = sdk.setupMain(async ({ effects }) => {
     })
 
     for (const { route, scheme, fwId } of applicable) {
-      const target = `${scheme}://localhost:${route.localPort}`
+      // An IP literal sends no SNI — the only thing an SSL bridge port answers.
+      const target = `${scheme}://127.0.0.1:${route.localPort}`
       const command: [string, ...string[]] =
         route.mode === 'funnel'
           ? [
