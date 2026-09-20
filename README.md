@@ -81,7 +81,7 @@ Two models, and one of them exists to cross a boundary.
 | _serve config_   | JSON   | Yes — `FileHelper.raw` | The actions                     |
 | `ts-status.json` | JSON   | Yes — read only        | A oneshot, inside the container |
 
-The serve config is the list of published routes: which package and interface, which mode, which ports. It is read reactively, which is what rebuilds the forwarders and re-applies the serves when a route is added or removed.
+The serve config is the list of published routes: which package and interface, which mode, which ports. It is read reactively, which is what rebuilds the forwarders and re-applies the serves when a route is added or removed. Each route's target host is read reactively too, so a target that is reinstalled or re-addressed re-resolves its forwarder and gets its address row back.
 
 **The status file exists because the package's own code cannot reach `tailscaled`.** The socket is inside the container; the code that exports URLs and drives the actions runs outside it. So a oneshot waits for the node to reach a running state and writes `tailscale status` to the volume, where the host side reads the MagicDNS name from it.
 
@@ -143,6 +143,8 @@ Adds a route: publishes one interface of one service onto the tailnet, in the ch
 - **What it changes:** the serve config, and through it this service's forwarder set.
 - **Cost:** Tailscale restarts and re-applies every route.
 - **Funnel mode publishes to the public internet**, and is restricted to the ports Tailscale permits.
+- **Adding a serve that already exists refreshes it** rather than failing — the case after the target service was reinstalled.
+- **A port held by a route whose target has been uninstalled is released** to the new serve; a port held by a live route is refused.
 
 ### Stop Tailscale Serve
 
@@ -159,15 +161,18 @@ None. This package raises no tasks, so the service is never held on a prompt and
 
 ## Health Checks
 
-Two named checks, plus one hidden check per route.
+Three named checks, plus one hidden check per route.
 
-| Check         | Displayed as                | Method                              |
-| ------------- | --------------------------- | ----------------------------------- |
-| `tailscaled`  | "Tailscale Daemon"          | The daemon's own reported state     |
-| `web`         | "Tailscale Admin Interface" | Port 8240 is listening              |
-| `fwd-<route>` | — internal                  | That route's forwarder is listening |
+| Check         | Displayed as                | Method                                                              |
+| ------------- | --------------------------- | ------------------------------------------------------------------- |
+| `tailscaled`  | "Tailscale Daemon"          | The daemon's own reported state                                     |
+| `web`         | "Tailscale Admin Interface" | Port 8240 is listening                                              |
+| `serve`       | "Tailscale Serve"           | tailscaled's live serve config carries every resolvable saved route |
+| `fwd-<route>` | — internal                  | That route's forwarder is listening                                 |
 
 **The daemon check reports "waiting for login" as a success, not a failure**, and that is right: a node that has never been signed in is working correctly, it just has not been told who it belongs to yet. Only an unreachable or unparseable daemon fails.
+
+**The serve check is what catches a serve Tailscale accepted but never applied.** `tailscale serve --bg` exits cleanly when HTTPS Certificates are not enabled for the tailnet, so a route can be saved and silently not served; the check compares tailscaled's live serve config against every saved route whose target still resolves and fails naming any that are missing. It reports disabled while no saved route resolves, and waiting until the node is signed in.
 
 None of the checks says whether a served service is actually reachable from another device. That depends on the target service being up and on Tailscale's own connectivity, and it is visible from the device you are connecting with.
 
@@ -191,6 +196,7 @@ A restored instance comes back signed in, with its routes intact, and re-resolve
 6. **Sign-in is out of band**, in Tailscale's own interface — there is no StartOS action for it.
 7. **The backup reproduces the device identity**, so never restore two copies.
 8. **Tailscale's coordination servers are a third party** your devices depend on to find each other.
+9. **A route whose target service was uninstalled stays saved** — it serves nothing and has no address row to remove it from — until the service is reinstalled (its row returns) or another serve takes its port.
 
 ---
 
@@ -220,5 +226,6 @@ tasks: []
 health_checks:
   - tailscaled # "waiting for login" reports success, not failure
   - web
+  - serve # every resolvable saved route is in tailscaled's serve config; disabled while none resolves, waiting until signed in
   - fwd-<route> # internal (display: null)
 ```

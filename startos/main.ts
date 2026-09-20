@@ -3,20 +3,26 @@ import { Daemons } from '@start9labs/start-sdk'
 import { i18n } from './i18n'
 import { manifest } from './manifest'
 import { sdk } from './sdk'
-import { serveConfig } from './fileModels/serveConfig'
+import { serveConfig, serveModeLabel } from './fileModels/serveConfig'
 import {
   DEVICE_NAME,
   SOCKET,
   STATE_DIR,
   STATUS_FILE,
   WEB_UI_PORT,
-  bridgeHost,
-  findIface,
-  routeHost,
+  routeHostId,
+  serveActive,
+  serveTarget,
   targetSchemeFor,
+  type ServeStatus,
 } from './utils'
 
 const TS = `tailscale --socket=${SOCKET}`
+const tailscale = (...args: string[]): [string, ...string[]] => [
+  'tailscale',
+  `--socket=${SOCKET}`,
+  ...args,
+]
 
 export const main = sdk.setupMain(async ({ effects }) => {
   // Reactive: adding or removing a serve rewrites this list, which re-runs main and
@@ -35,33 +41,33 @@ export const main = sdk.setupMain(async ({ effects }) => {
     'tailscale-sub',
   )
 
-  const checkTailscaleHealth = async (): Promise<HealthCheckResult> => {
-    const res = await sub.exec(
-      ['tailscale', `--socket=${SOCKET}`, 'status', '--json'],
-      {},
-      5000,
-    )
-    if (res.exitCode !== 0) {
-      return { result: 'failure', message: i18n('Tailscaled is not ready') }
-    }
+  const backendState = async () => {
+    const res = await sub.exec(tailscale('status', '--json'), {}, 5000)
+    if (res.exitCode !== 0) return null
     try {
-      const state = (
-        JSON.parse(String(res.stdout)) as { BackendState?: string }
-      ).BackendState
-      switch (state) {
-        case 'Running':
-          return { result: 'success', message: i18n('Tailscaled is running') }
-        case 'NeedsLogin':
-        case 'NeedsMachineAuth':
-          return {
-            result: 'success',
-            message: i18n('Tailscale is waiting for login'),
-          }
-        default:
-          return { result: 'loading', message: i18n('Tailscaled is starting') }
-      }
+      return (
+        (JSON.parse(String(res.stdout)) as { BackendState?: string })
+          .BackendState ?? null
+      )
     } catch {
-      return { result: 'failure', message: i18n('Tailscaled is not ready') }
+      return null
+    }
+  }
+
+  const checkTailscaleHealth = async (): Promise<HealthCheckResult> => {
+    switch (await backendState()) {
+      case 'Running':
+        return { result: 'success', message: i18n('Tailscaled is running') }
+      case 'NeedsLogin':
+      case 'NeedsMachineAuth':
+        return {
+          result: 'success',
+          message: i18n('Tailscale is waiting for login'),
+        }
+      case null:
+        return { result: 'failure', message: i18n('Tailscaled is not ready') }
+      default:
+        return { result: 'loading', message: i18n('Tailscaled is starting') }
     }
   }
 
@@ -89,13 +95,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
   daemons = daemons.addDaemon('web' as never, {
     subcontainer: sub,
     exec: {
-      command: [
-        'tailscale',
-        `--socket=${SOCKET}`,
-        'web',
-        '--listen',
-        `0.0.0.0:${WEB_UI_PORT}`,
-      ],
+      command: tailscale('web', '--listen', `0.0.0.0:${WEB_UI_PORT}`),
     },
     ready: {
       display: i18n('Tailscale Admin Interface'),
@@ -110,35 +110,28 @@ export const main = sdk.setupMain(async ({ effects }) => {
 
   // Resolve each saved serve to its live target and stand up one socat forwarder
   // per route (tailscale serve only proxies to localhost, so the forwarder bridges
-  // localhost:<localPort> -> the target's LXC-bridge <host>:<port>).
+  // localhost:<localPort> -> the target's LXC-bridge <host>:<port>). The target is
+  // read reactively, so a reinstalled or re-addressed service re-resolves.
   const applicable: {
     route: (typeof routes)[number]
     scheme: string
     fwId: string
   }[] = []
   for (const route of routes) {
-    // Resolve the target over the LXC bridge (host-based via the route's stored
-    // hostId). Replaces getContainerIp — which returned null for the OS admin
-    // UI (`start-os` has no container), the reason Tailscale couldn't serve
-    // `start-os`/`admin-ui` before. `https+insecure` targets the OS-terminated
-    // SSL bridge port; http/tcp the plaintext one.
-    const host = await routeHost(effects, route)
-    const iface = findIface(host, route.interfaceId)
-    if (!iface?.addressInfo) continue
+    const hostId = await routeHostId(effects, route)
+    if (!hostId) continue
+    // `https+insecure` targets the OS-terminated SSL bridge port; http/tcp the
+    // plaintext one.
+    const target = await sdk.host
+      .get(effects, { hostId, packageId: route.packageId }, (host) =>
+        serveTarget(host, route.interfaceId),
+      )
+      .const()
+    if (!target) continue
     // TCP routes forward any port; the web modes need an HTTP(S) target for serve.
-    let scheme: string
-    if (route.mode === 'tcp') {
-      scheme = 'tcp'
-    } else {
-      const httpScheme = targetSchemeFor(iface.addressInfo)
-      if (!httpScheme) continue
-      scheme = httpScheme
-    }
-    const addr = bridgeHost(
-      host,
-      iface.addressInfo.internalPort,
-      scheme === 'https+insecure',
-    )
+    const scheme = route.mode === 'tcp' ? 'tcp' : targetSchemeFor(target)
+    if (!scheme) continue
+    const addr = scheme === 'https+insecure' ? target.ssl : target.plain
     if (!addr) continue
 
     const fwId = `fwd-${route.id}`
@@ -198,34 +191,19 @@ export const main = sdk.setupMain(async ({ effects }) => {
     })
 
     for (const { route, scheme, fwId } of applicable) {
-      const target = `${scheme}://localhost:${route.localPort}`
-      const command: [string, ...string[]] =
+      // A target's SSL bridge port answers only SNI-less connections, which an IP literal guarantees.
+      const target = `${scheme}://127.0.0.1:${route.localPort}`
+      const command =
         route.mode === 'funnel'
-          ? [
-              'tailscale',
-              `--socket=${SOCKET}`,
-              'funnel',
-              '--bg',
-              `--https=${route.externalPort}`,
-              target,
-            ]
+          ? tailscale('funnel', '--bg', `--https=${route.externalPort}`, target)
           : route.mode === 'tcp'
-            ? [
-                'tailscale',
-                `--socket=${SOCKET}`,
+            ? tailscale('serve', '--bg', `--tcp=${route.externalPort}`, target)
+            : tailscale(
                 'serve',
                 '--bg',
-                `--tcp=${route.externalPort}`,
+                `--${route.mode}=${route.externalPort}`,
                 target,
-              ]
-            : [
-                'tailscale',
-                `--socket=${SOCKET}`,
-                'serve',
-                '--bg',
-                `--${route.mode === 'http' ? 'http' : 'https'}=${route.externalPort}`,
-                target,
-              ]
+              )
       daemons = daemons.addOneshot(`apply-${route.id}` as never, {
         subcontainer: sub,
         exec: { command },
@@ -233,6 +211,68 @@ export const main = sdk.setupMain(async ({ effects }) => {
       })
     }
   }
+
+  // `tailscale serve --bg` can exit 0 without applying anything (HTTPS
+  // Certificates not enabled for the tailnet, Funnel not enabled), so the apply
+  // oneshots prove nothing on their own: compare tailscaled's live serve config
+  // against the routes that should be in it.
+  const checkServes = async (): Promise<HealthCheckResult> => {
+    if (applicable.length === 0) {
+      return { result: 'disabled', message: i18n('No interfaces are served') }
+    }
+    if ((await backendState()) !== 'Running') {
+      return {
+        result: 'waiting',
+        message: i18n('Sign this node in to your tailnet to serve interfaces'),
+      }
+    }
+    const res = await sub.exec(tailscale('serve', 'status', '--json'), {}, 5000)
+    if (res.exitCode !== 0) {
+      return {
+        result: 'failure',
+        message: i18n('Could not read the serve configuration from tailscaled'),
+      }
+    }
+    const status: ServeStatus = JSON.parse(String(res.stdout)) ?? {}
+    const missing = applicable.filter(
+      ({ route }) => !serveActive(status, route),
+    )
+    if (missing.length === 0) {
+      return { result: 'success', message: i18n('All serves are active') }
+    }
+    return {
+      result: 'failure',
+      message: i18n(
+        'Not active: ${routes}. HTTPS and Funnel serves need HTTPS Certificates enabled for your tailnet in the Tailscale admin console, and Funnel needs Funnel enabled.',
+        {
+          routes: missing
+            .map(({ route }) =>
+              i18n('${title} → ${iface} (${mode}, port ${port})', {
+                title: route.packageTitle,
+                iface: route.interfaceName,
+                mode: serveModeLabel(route.mode),
+                port: String(route.externalPort),
+              }),
+            )
+            .join(', '),
+        },
+      ),
+    }
+  }
+  daemons = daemons.addHealthCheck('serve' as never, {
+    ready: {
+      display: i18n('Tailscale Serve'),
+      fn: checkServes,
+      gracePeriod: 30_000,
+      trigger: sdk.trigger.statusTrigger(30_000, {
+        starting: 1_000,
+        waiting: 5_000,
+        failure: 5_000,
+      }),
+    },
+    // Requiring the apply oneshots instead would hide a hard-failing one behind a bare "waiting".
+    requires: ['tailscaled'],
+  })
 
   return daemons
 })
