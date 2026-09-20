@@ -8,7 +8,7 @@ import {
   serveConfig,
   type ServeMode,
 } from '../fileModels/serveConfig'
-import { findIface, targetSchemeFor } from '../utils'
+import { findIface, routeTargetExists, targetSchemeFor } from '../utils'
 import { syncExportedUrls } from '../plugin/sync'
 
 const { InputSpec, Value } = sdk
@@ -137,20 +137,22 @@ export const addExposureFromUrl = sdk.Action.withInput(
       input.externalPort,
     )
 
-    if (config.routes.some((route) => route.id === id)) {
-      throw new Error(
-        i18n('That interface is already served with this mode and port.'),
-      )
-    }
-    if (
-      config.routes.some((route) => route.externalPort === input.externalPort)
-    ) {
+    // Re-adding the same serve refreshes it (a reinstalled target carries the
+    // same ids), and a port held by a route whose target is gone is released.
+    const existing = config.routes.find((route) => route.id === id)
+    const holder = config.routes.find(
+      (route) => route.id !== id && route.externalPort === input.externalPort,
+    )
+    if (holder && (await routeTargetExists(effects, holder))) {
       throw new Error(
         i18n('Port ${port} is already in use by another Tailscale serve.', {
           port: String(input.externalPort),
         }),
       )
     }
+    const kept = config.routes.filter(
+      (route) => route.id !== id && route !== holder,
+    )
 
     const route = {
       id,
@@ -163,25 +165,26 @@ export const addExposureFromUrl = sdk.Action.withInput(
       interfaceName: iface.name,
       mode,
       externalPort: input.externalPort,
-      localPort: allocateLocalPort(config.routes),
+      localPort: existing?.localPort ?? allocateLocalPort(kept),
     }
 
-    await serveConfig.write(effects, {
-      version: 1,
-      routes: [...config.routes, route],
-    })
+    await serveConfig.write(effects, { version: 1, routes: [...kept, route] })
     await syncExportedUrls(effects)
 
     return {
       version: '1' as const,
       title: i18n('Tailscale Serve Added'),
-      message: isFunnelMode(mode)
+      message: existing
         ? i18n(
-            'Saved. Funnel publishes this service on the PUBLIC INTERNET once this node is signed in and Funnel is enabled for your tailnet. The address appears in this service’s list shortly.',
+            'This interface was already served with this mode and port; its address has been refreshed.',
           )
-        : i18n(
-            'Saved. The address appears in this service’s list once this node is signed in to your tailnet.',
-          ),
+        : isFunnelMode(mode)
+          ? i18n(
+              'Saved. Funnel publishes this service on the PUBLIC INTERNET once this node is signed in and Funnel is enabled for your tailnet. The address appears in this service’s list shortly.',
+            )
+          : i18n(
+              'Saved. The address appears in this service’s list once this node is signed in to your tailnet.',
+            ),
       result: null,
     }
   },

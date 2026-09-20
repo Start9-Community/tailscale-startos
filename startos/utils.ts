@@ -1,7 +1,11 @@
 import { T, utils } from '@start9labs/start-sdk'
 import { sdk } from './sdk'
 import { STATUS_FILE_SUBPATH } from './fileModels/status'
-import { serveUsesTailnetTls, type ServeMode } from './fileModels/serveConfig'
+import {
+  serveUsesTailnetTls,
+  type ServeMode,
+  type ServeRoute,
+} from './fileModels/serveConfig'
 
 /** Find a filled interface by id across a resolved host's bindings. */
 export const findIface = (host: utils.FilledHost | null, interfaceId: string) =>
@@ -12,25 +16,32 @@ export const findIface = (host: utils.FilledHost | null, interfaceId: string) =>
   undefined
 
 /**
- * The target host for a serve route, over the LXC bridge. Prefers the `hostId`
- * captured on the route (host-based — the normal path). A legacy route saved
- * before the hostId was stored derives it once from the interface; that raw
- * interface read is the only place `getServiceInterface` remains.
+ * The host id a route targets: the one captured at add-time, or, for a route
+ * saved before it was stored, derived once from the interface.
  */
-export const routeHost = async (
+export const routeHostId = async (
   effects: T.Effects,
   route: { packageId: string; interfaceId: string; hostId?: string },
-) => {
-  let hostId = route.hostId
-  if (!hostId) {
-    const iface = await effects.getServiceInterface({
+) =>
+  route.hostId ??
+  (
+    await effects.getServiceInterface({
       packageId: route.packageId,
       serviceInterfaceId: route.interfaceId,
     })
-    hostId = iface?.addressInfo?.hostId
-    if (!hostId) return null
-  }
-  return sdk.host.get(effects, { hostId, packageId: route.packageId }).once()
+  )?.addressInfo?.hostId
+
+/** Whether a route's target interface still exists on an installed package. */
+export const routeTargetExists = async (
+  effects: T.Effects,
+  route: { packageId: string; interfaceId: string; hostId?: string },
+) => {
+  const hostId = await routeHostId(effects, route)
+  if (!hostId) return false
+  const host = await sdk.host
+    .get(effects, { hostId, packageId: route.packageId })
+    .once()
+  return !!findIface(host, route.interfaceId)?.addressInfo
 }
 
 /**
@@ -48,12 +59,33 @@ export const bridgeHost = (
 ) => {
   const binding = host?.bindings[internalPort]
   const iface = binding && Object.values(binding.interfaces)[0]
-  return iface
+  const h = iface
     ? iface.addressInfo.filter({
         kind: 'bridge',
         predicate: (h) => h.metadata.kind === 'ipv4' && h.ssl === ssl,
       }).hostnames[0]
     : undefined
+  return h && { hostname: h.hostname, port: h.port }
+}
+
+/**
+ * What a serve needs of its target interface: the schemes it advertises and
+ * its bridge address on each leg. Plain data, so a host read mapped through it
+ * re-runs its context only when one of these changes.
+ */
+export const serveTarget = (
+  host: utils.FilledHost | null,
+  interfaceId: string,
+) => {
+  const info = findIface(host, interfaceId)?.addressInfo
+  return info
+    ? {
+        scheme: info.scheme ?? null,
+        sslScheme: info.sslScheme ?? null,
+        plain: bridgeHost(host, info.internalPort, false) ?? null,
+        ssl: bridgeHost(host, info.internalPort, true) ?? null,
+      }
+    : null
 }
 
 // Runtime paths inside the container. The tailscaled socket lives on the `main`
@@ -67,23 +99,52 @@ export const WEB_UI_PORT = 8240
 /** Default device name set before tailscaled registers (user-overridable in the Tailscale console). */
 export const DEVICE_NAME = 'startos'
 
-export type AddressInfoLike = {
-  hostId: string
-  internalPort: number
-  scheme?: string | null
-  sslScheme?: string | null
-}
-
 /**
  * How tailscaled should dial the local socat forwarder for this interface.
  * Returns null when the interface advertises no HTTP(S) endpoint (can't be served).
  */
-export function targetSchemeFor(
-  addressInfo: AddressInfoLike,
-): 'http' | 'https+insecure' | null {
+export function targetSchemeFor(addressInfo: {
+  scheme?: string | null
+  sslScheme?: string | null
+}): 'http' | 'https+insecure' | null {
   if (addressInfo.scheme?.startsWith('http')) return 'http'
   if (addressInfo.sslScheme?.startsWith('http')) return 'https+insecure'
   return null
+}
+
+/** The parts of `tailscale serve status --json` the serve health check reads. */
+export type ServeStatus = {
+  TCP?: Record<string, { HTTP?: boolean; HTTPS?: boolean; TCPForward?: string }>
+  Web?: Record<string, { Handlers?: Record<string, { Proxy?: string }> }>
+  AllowFunnel?: Record<string, boolean>
+}
+
+/** Whether tailscaled's serve config carries this route, forwarder and all. */
+export function serveActive(
+  status: ServeStatus,
+  route: Pick<ServeRoute, 'mode' | 'externalPort' | 'localPort'>,
+): boolean {
+  const port = `:${route.externalPort}`
+  const forwarder = `127.0.0.1:${route.localPort}`
+  const tcp = status.TCP?.[route.externalPort]
+  if (route.mode === 'tcp') return tcp?.TCPForward === forwarder
+  const web = Object.entries(status.Web ?? {}).some(
+    ([hostPort, site]) =>
+      hostPort.endsWith(port) &&
+      Object.values(site.Handlers ?? {}).some((h) =>
+        h.Proxy?.includes(forwarder),
+      ),
+  )
+  const funnel =
+    route.mode !== 'funnel' ||
+    Object.entries(status.AllowFunnel ?? {}).some(
+      ([hostPort, allowed]) => allowed && hostPort.endsWith(port),
+    )
+  return (
+    !!(serveUsesTailnetTls(route.mode) ? tcp?.HTTPS : tcp?.HTTP) &&
+    web &&
+    funnel
+  )
 }
 
 /** The URL another Tailscale device uses to reach a served interface. */

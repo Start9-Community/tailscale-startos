@@ -30,7 +30,7 @@ const dict = {
   'Stop serving this interface through this Tailscale node.': 22,
   // actions/addExposureFromUrl.ts — results + errors
   'That interface does not advertise HTTP, so it can only be served over Tailscale in TCP mode.': 23,
-  'That interface is already served with this mode and port.': 24,
+  'This interface was already served with this mode and port; its address has been refreshed.': 24,
   'Port ${port} is already in use by another Tailscale serve.': 25,
   'Funnel only accepts ports 443, 8443, and 10000. Pick one of those for a Funnel serve.': 26,
   'Tailscale Serve Added': 27,
@@ -46,6 +46,13 @@ const dict = {
   // actions/addExposureFromUrl.ts — TCP serve mode
   'TCP (tailnet only, raw TCP passthrough)': 36,
   'That interface can no longer be reached, so it cannot be served through Tailscale.': 37,
+  // main.ts — serve health check
+  'No interfaces are served': 38,
+  'Sign this node in to your tailnet to serve interfaces': 39,
+  'Could not read the serve configuration from tailscaled': 40,
+  'All serves are active': 41,
+  'Not active: ${routes}. HTTPS and Funnel serves need HTTPS Certificates enabled for your tailnet in the Tailscale admin console, and Funnel needs Funnel enabled.': 42,
+  'Tailscale Serve': 43,
 } as const
 
 /**

@@ -21,7 +21,7 @@
 1. Start the service and open its **Tailscale Admin** interface (Tailscale's web UI).
 2. Sign the node in to your tailnet there, following Tailscale's prompts. Tailscale opens its sign-in page in a new browser tab — if nothing happens when you click **Log In**, allow pop-ups for this page (or open the login link it shows). The same screen displays the node's status and MagicDNS name once it connects.
 3. The node joins your tailnet as **startos** by default. Rename it from the [Tailscale admin console](https://login.tailscale.com/admin/machines) if you want a different MagicDNS name for the addresses you publish.
-4. If you plan to use HTTPS or Funnel serves, enable **HTTPS Certificates** for your tailnet in the [Tailscale admin console](https://login.tailscale.com/admin/dns) (DNS → HTTPS). Without it, an HTTPS or Funnel serve will not come up.
+4. If you plan to use HTTPS or Funnel serves, enable **HTTPS Certificates** for your tailnet in the [Tailscale admin console](https://login.tailscale.com/admin/dns) (DNS → HTTPS). Without it, an HTTPS or Funnel serve will not come up, and the **Tailscale Serve** health check names the serve that is not active.
 
 ## Using Tailscale
 
@@ -34,5 +34,7 @@
    - **TCP** — raw TCP passthrough on your private tailnet, for non-web services like LND or electrs. Reach it from your other Tailscale devices at `name:port`. Non-web services offer only this mode.
    - **Funnel** — publishes it on the **public internet**, reachable by anyone. Only use this if that's what you intend. Funnel allows only ports 443, 8443, and 10000.
 4. Confirm the published port and save. The address appears in that service's URL list once the node is connected. To stop exposing it, use **Stop Tailscale Serve** on that row.
+
+If you reinstall a service you were serving, its Tailscale address comes back on its own once the service is installed again. Serving it again with the same mode and port just refreshes it.
 
 > Adding or removing a serve briefly restarts this node; it reconnects on its own.
