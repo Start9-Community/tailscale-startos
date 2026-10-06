@@ -5,7 +5,7 @@ import { sdk } from '../sdk'
 // Only the stable identity, display labels, and the allocated local forwarder port
 // are persisted; the target's container IP / internal port / scheme are resolved
 // fresh at runtime (they can change when the target service restarts).
-const routeSchema = z.object({
+const routeSchema = z.looseObject({
   id: z.string(),
   packageId: z.string(),
   interfaceId: z.string(),
@@ -24,7 +24,7 @@ const routeSchema = z.object({
 })
 
 export const serveConfigSchema = z
-  .object({
+  .looseObject({
     version: z.literal(1).catch(1),
     routes: z.array(routeSchema).catch([]),
   })

@@ -152,6 +152,7 @@ Removes a route.
 
 - **Invoked from the exported row** in the same URL table.
 - **What it changes:** the serve config; the forwarder and its serve rule go away on the restart.
+- **Warns before it runs:** devices on the tailnet lose the interface, and a Funnel serve comes off the public internet.
 
 Both are hidden rather than absent, so the platform can drive them while a user never has to find them here.
 

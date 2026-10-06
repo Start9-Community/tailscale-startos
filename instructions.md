@@ -33,7 +33,7 @@
    - **HTTPS** or **HTTP** — keeps the service on your private tailnet.
    - **TCP** — raw TCP passthrough on your private tailnet, for non-web services like LND or electrs. Reach it from your other Tailscale devices at `name:port`. Non-web services offer only this mode.
    - **Funnel** — publishes it on the **public internet**, reachable by anyone. Only use this if that's what you intend. Funnel allows only ports 443, 8443, and 10000.
-4. Confirm the published port and save. The address appears in that service's URL list once the node is connected. To stop exposing it, use **Stop Tailscale Serve** on that row.
+4. Confirm the published port and save. The address appears in that service's URL list once the node is connected. To stop exposing it, use **Stop Tailscale Serve** on that row and confirm.
 
 If you reinstall a service you were serving, its Tailscale address comes back on its own once the service is installed again. Serving it again with the same mode and port just refreshes it.
 

@@ -39,7 +39,9 @@ export const removeExposureFromUrl = sdk.Action.withInput(
     description: i18n(
       'Stop serving this interface through this Tailscale node.',
     ),
-    warning: null,
+    warning: i18n(
+      'Devices on your tailnet will no longer be able to reach this interface through this node. A Funnel serve is also taken off the public internet.',
+    ),
     allowedStatuses: 'any',
     group: null,
     visibility: 'hidden',

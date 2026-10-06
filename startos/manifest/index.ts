@@ -22,5 +22,4 @@ export const manifest = setupManifest({
     },
   },
   plugins: ['url-v0'],
-  dependencies: {},
 })

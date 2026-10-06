@@ -18,19 +18,23 @@ Freshly scaffolded? Work the
 guide page, not a file in this repo — read it, don't copy it in.
 
 Keep `README.md` (technical reference for an AI support or administering agent) and
-`instructions.md` (end-user docs) in sync with your changes.
+`instructions.md` (end-user docs) in sync with your changes. This file restates neither:
+whoever changes the package has both, so it carries only what they don't — repo mechanics,
+a change that looks right and is not, where the next thing gets added, a naming trap, a
+build or test invocation particular to this repo.
 
-**Bugs and feature requests are GitHub issues on this repo** — file them as you find them.
+**Fix a defect you spot rather than reporting it** — you have the package open and the
+context to be sure. File **a GitHub issue on this repo** only when the call isn't yours to
+make: you can't pin the cause down, two defensible fixes exist, or it's too large to ride on
+the work in hand. An open issue is a report, not a queue — implement one when you're asked
+to or when it's labelled `Approved`, then close it with `Closes #<n>`.
+
 Don't record work in the repo instead: no `TODO.md`, no `NOTES.md`, no `PLAN.md`. What you
 verified, tried, and decided belongs in the commit message and the PR body.
 
 ## This repo
 
-- **`ts-status.json` must be written in place (`>`), never tmp+mv.** The host-side `FileHelper` watch is bound to that inode; an atomic replace swaps it and every subsequent update is missed. The file exists at all because the package's own code cannot reach `tailscaled`'s socket — the socket is in the container, the exporting code is not.
-- **The status oneshot runs even with no routes configured.** That is what makes the MagicDNS name available right after sign-in instead of only after the first serve.
-- **`tailscale serve` only proxies to localhost**, which is why each route gets a `socat` forwarder daemon. Don't try to point serve at a bridge address directly.
-- **Daemon ids are widened to `string` and cast `as never`** so a variable number of forwarder/apply daemons can be added in a loop; `requires` is matched against ids at runtime.
-- **Set the hostname before `tailscaled` registers.** Otherwise it adopts the random subcontainer hostname and the node — plus every exported serve URL — appears as `<random>.<tailnet>.ts.net`. It only sets the default, so a console rename still wins.
-- **Both actions are `visibility: 'hidden'` on purpose.** They are driven from the `url-v0` table on other services, not from this package's Actions tab.
-- **`--tun=userspace-networking` is required** in a container with no host network privileges; it also means this node cannot be a subnet router or exit node.
-- **Funnel is public-internet exposure**, restricted to Tailscale's allowed ports — keep it clearly distinguished from the tailnet-only modes in any UI text.
+- **Write `ts-status.json` in place (`>`), never tmp+mv.** The host-side `FileHelper` watch is bound to its inode, so a replaced file is never seen again.
+- **Don't point `tailscale serve` at a bridge address.** It only proxies to localhost, which is why each route has a `socat` forwarder.
+- **Keep the `hostname` step ahead of `tailscaled` in its command.** Without it the node, and every exported serve URL, registers as `<random>.<tailnet>.ts.net`.
+- **Keep Funnel clearly distinct from the tailnet-only modes in any UI text.** It is the one mode that publishes to the public internet.
