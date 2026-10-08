@@ -6,11 +6,10 @@ import { sdk } from '../sdk'
 // tailscaled's socket, so this file is how it learns the node's MagicDNS name. We only
 // ever READ it here — the in-container oneshot writes it with a shell redirect.
 const statusSchema = z
-  .object({
+  .looseObject({
     BackendState: z.string().optional(),
-    Self: z.object({ DNSName: z.string().optional() }).passthrough().optional(),
+    Self: z.looseObject({ DNSName: z.string().optional() }).optional(),
   })
-  .passthrough()
   .catch({})
 
 export type TailscaleStatus = z.infer<typeof statusSchema>

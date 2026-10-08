@@ -42,7 +42,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
   )
 
   const backendState = async () => {
-    const res = await sub.exec(tailscale('status', '--json'), {}, 5000)
+    const res = await sub.exec(tailscale('status', '--json'), { timeout: 5000 })
     if (res.exitCode !== 0) return null
     try {
       return (
@@ -226,7 +226,9 @@ export const main = sdk.setupMain(async ({ effects }) => {
         message: i18n('Sign this node in to your tailnet to serve interfaces'),
       }
     }
-    const res = await sub.exec(tailscale('serve', 'status', '--json'), {}, 5000)
+    const res = await sub.exec(tailscale('serve', 'status', '--json'), {
+      timeout: 5000,
+    })
     if (res.exitCode !== 0) {
       return {
         result: 'failure',

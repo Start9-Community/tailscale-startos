@@ -19,7 +19,8 @@ const dict = {
   'Serve On Tailscale': 12,
   'Serve this interface through this Tailscale node — HTTPS or HTTP on your private tailnet, raw TCP for non-web services, or Funnel to publish it on the public internet.': 13,
   'Serve Mode': 14,
-  'HTTPS, HTTP, and TCP keep this service on your private tailnet; use TCP for non-web services like LND or electrs. Funnel publishes the same HTTPS endpoint on the PUBLIC INTERNET, reachable by anyone — only use it if that is what you want. Funnel is restricted to ports 443, 8443, and 10000.': 15,
+  '- HTTPS: reachable only from your tailnet, over HTTPS with a certificate Tailscale manages. Needs HTTPS Certificates enabled for your tailnet.\n- HTTP: reachable only from your tailnet, over plain HTTP without TLS.\n- Funnel: published on the public internet over HTTPS, reachable by anyone. Needs HTTPS Certificates and Funnel enabled for your tailnet, and port 443, 8443 or 10000.\n- TCP: reachable only from your tailnet, as raw TCP. For services that are not websites, such as LND or electrs.': 15,
+  '- TCP: reachable only from your tailnet, as raw TCP. This interface does not offer HTTP, so TCP is the only mode.': 44,
   'HTTPS (tailnet only, Tailscale-managed TLS)': 16,
   'HTTP (tailnet only, no TLS)': 17,
   'Funnel (PUBLIC HTTPS on the open internet)': 18,
@@ -28,6 +29,7 @@ const dict = {
   // actions/removeExposureFromUrl.ts — metadata
   'Stop Tailscale Serve': 21,
   'Stop serving this interface through this Tailscale node.': 22,
+  'Devices on your tailnet will no longer be able to reach this interface through this node. A Funnel serve is also taken off the public internet.': 45,
   // actions/addExposureFromUrl.ts — results + errors
   'That interface does not advertise HTTP, so it can only be served over Tailscale in TCP mode.': 23,
   'This interface was already served with this mode and port; its address has been refreshed.': 24,

@@ -69,9 +69,13 @@ export const addExposureFromUrl = sdk.Action.withInput(
       urlPluginMetadata: Value.hidden<TableMetadata>(),
       mode: Value.select({
         name: i18n('Serve Mode'),
-        description: i18n(
-          'HTTPS, HTTP, and TCP keep this service on your private tailnet; use TCP for non-web services like LND or electrs. Funnel publishes the same HTTPS endpoint on the PUBLIC INTERNET, reachable by anyone — only use it if that is what you want. Funnel is restricted to ports 443, 8443, and 10000.',
-        ),
+        description: httpCapable
+          ? i18n(
+              '- HTTPS: reachable only from your tailnet, over HTTPS with a certificate Tailscale manages. Needs HTTPS Certificates enabled for your tailnet.\n- HTTP: reachable only from your tailnet, over plain HTTP without TLS.\n- Funnel: published on the public internet over HTTPS, reachable by anyone. Needs HTTPS Certificates and Funnel enabled for your tailnet, and port 443, 8443 or 10000.\n- TCP: reachable only from your tailnet, as raw TCP. For services that are not websites, such as LND or electrs.',
+            )
+          : i18n(
+              '- TCP: reachable only from your tailnet, as raw TCP. This interface does not offer HTTP, so TCP is the only mode.',
+            ),
         default: httpCapable ? 'https' : 'tcp',
         values,
       }),
