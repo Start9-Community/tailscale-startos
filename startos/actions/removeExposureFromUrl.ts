@@ -86,6 +86,7 @@ export const removeExposureFromUrl = sdk.Action.withInput(
         }),
         copyable: false,
         qr: false,
+        launchable: false,
         masked: false,
       },
     }
