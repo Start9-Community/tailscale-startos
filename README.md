@@ -173,7 +173,7 @@ Three named checks, plus one hidden check per route.
 
 **The daemon check reports "waiting for login" as a success, not a failure**, and that is right: a node that has never been signed in is working correctly, it just has not been told who it belongs to yet. Only an unreachable or unparseable daemon fails.
 
-**The serve check is what catches a serve Tailscale accepted but never applied.** `tailscale serve --bg` exits cleanly when HTTPS Certificates are not enabled for the tailnet, so a route can be saved and silently not served; the check compares tailscaled's live serve config against every saved route whose target still resolves and fails naming any that are missing. It reports disabled while no saved route resolves, and waiting until the node is signed in.
+**The serve check is what catches a serve Tailscale accepted but never applied.** `tailscale serve --bg` exits cleanly when HTTPS Certificates are not enabled for the tailnet, so a route can be saved and silently not served; the check compares tailscaled's live serve config against every saved route whose target still resolves and fails naming any that are missing. It reports disabled while no saved route resolves or the node is signed out.
 
 None of the checks says whether a served service is actually reachable from another device. That depends on the target service being up and on Tailscale's own connectivity, and it is visible from the device you are connecting with.
 
@@ -227,6 +227,6 @@ tasks: []
 health_checks:
   - tailscaled # "waiting for login" reports success, not failure
   - web
-  - serve # every resolvable saved route is in tailscaled's serve config; disabled while none resolves, waiting until signed in
+  - serve # every resolvable saved route is in tailscaled's serve config; disabled while none resolves or the node is signed out
   - fwd-<route> # internal (display: null)
 ```
