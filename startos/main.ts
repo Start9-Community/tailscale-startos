@@ -222,7 +222,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
     }
     if ((await backendState()) !== 'Running') {
       return {
-        result: 'waiting',
+        result: 'disabled',
         message: i18n('Sign this node in to your tailnet to serve interfaces'),
       }
     }
@@ -268,7 +268,6 @@ export const main = sdk.setupMain(async ({ effects }) => {
       gracePeriod: 30_000,
       trigger: sdk.trigger.statusTrigger(30_000, {
         starting: 1_000,
-        waiting: 5_000,
         failure: 5_000,
       }),
     },
