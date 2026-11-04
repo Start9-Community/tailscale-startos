@@ -21,10 +21,5 @@ is why this package drops that arch).
 ## Applying the bump
 
 1. Bump the tag in `Dockerfile`'s `FROM ghcr.io/tailscale/tailscale:<version>`
-   line (keep the leading `v`, e.g. `v1.96.5`).
-2. Update the upstream portion of `version` in `startos/versions/current.ts` to
-   match (drop the leading `v`), resetting the downstream revision to `0` — e.g.
-   `1.96.5:0` → `1.98.0:0` — and refresh its `releaseNotes`. Edit `current.ts` in
-   place; the filename stays `current.ts`. Spin off a separate version file only
-   when the bump carries a migration. See
-   [Versions](https://docs.start9.com/packaging/versions.html) for that rule.
+   line (keep the leading `v`, e.g. `v1.96.5`). The package version's upstream part
+   drops it (`1.96.5`).
