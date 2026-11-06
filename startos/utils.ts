@@ -102,13 +102,16 @@ export const DEVICE_NAME = 'startos'
 /**
  * How tailscaled should dial the local socat forwarder for this interface.
  * Returns null when the interface advertises no HTTP(S) endpoint (can't be served).
+ * A TLS serve prefers the SSL leg: StartOS sets `X-Forwarded-Proto: https` only there.
  */
-export function targetSchemeFor(addressInfo: {
-  scheme?: string | null
-  sslScheme?: string | null
-}): 'http' | 'https+insecure' | null {
-  if (addressInfo.scheme?.startsWith('http')) return 'http'
-  if (addressInfo.sslScheme?.startsWith('http')) return 'https+insecure'
+export function targetSchemeFor(
+  addressInfo: { scheme?: string | null; sslScheme?: string | null },
+  preferSsl = false,
+): 'http' | 'https+insecure' | null {
+  const plain = addressInfo.scheme?.startsWith('http')
+  const ssl = addressInfo.sslScheme?.startsWith('http')
+  if (ssl && (preferSsl || !plain)) return 'https+insecure'
+  if (plain) return 'http'
   return null
 }
 

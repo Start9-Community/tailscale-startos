@@ -108,6 +108,8 @@ One StartOS interface, and it is not where the interesting traffic goes.
 
 **Serving works by forwarding, because Tailscale only serves what is on localhost.** For each route the package runs a small forwarder from a local port to the target service's bridge address, and points `tailscale serve` at that local port. It is why a route needs a daemon of its own.
 
+**An `https` or `funnel` route forwards to the target's SSL bridge port when the interface has one**, so the service receives `X-Forwarded-Proto: https` and builds `https://` redirects. StartOS sets that header only on its SSL leg and strips forwarded headers on the plaintext one. An `http` route forwards to the plaintext port.
+
 Four modes are supported, and one of them leaves your tailnet:
 
 | Mode     | Reachable by                                 |
