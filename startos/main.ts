@@ -3,7 +3,11 @@ import { Daemons } from '@start9labs/start-sdk'
 import { i18n } from './i18n'
 import { manifest } from './manifest'
 import { sdk } from './sdk'
-import { serveConfig, serveModeLabel } from './fileModels/serveConfig'
+import {
+  serveConfig,
+  serveModeLabel,
+  serveUsesTailnetTls,
+} from './fileModels/serveConfig'
 import {
   DEVICE_NAME,
   SOCKET,
@@ -129,7 +133,10 @@ export const main = sdk.setupMain(async ({ effects }) => {
       .const()
     if (!target) continue
     // TCP routes forward any port; the web modes need an HTTP(S) target for serve.
-    const scheme = route.mode === 'tcp' ? 'tcp' : targetSchemeFor(target)
+    const scheme =
+      route.mode === 'tcp'
+        ? 'tcp'
+        : targetSchemeFor(target, serveUsesTailnetTls(route.mode))
     if (!scheme) continue
     const addr = scheme === 'https+insecure' ? target.ssl : target.plain
     if (!addr) continue
