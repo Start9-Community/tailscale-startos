@@ -1,18 +1,18 @@
 import { IMPOSSIBLE, VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
-  version: '1.104.4:1',
+  version: '1.104.7:0',
   releaseNotes: {
     en_US:
-      'HTTPS and Funnel serves now tell the served service that the connection is HTTPS, so redirects and CalDAV/CardDAV discovery (for example in Nextcloud) point to https:// addresses.',
+      'Updated Tailscale to 1.104.7. Fixes connectivity stalls for Tailscale SSH and Serve on lossy networks, a rare issue with dormant connections, and control plane connections broken by some middleboxes.',
     es_ES:
-      'Los servicios publicados por HTTPS y Funnel ahora indican al servicio que la conexión es HTTPS, de modo que las redirecciones y el descubrimiento CalDAV/CardDAV (por ejemplo en Nextcloud) apuntan a direcciones https://.',
+      'Actualiza Tailscale a 1.104.7. Corrige bloqueos de conectividad de Tailscale SSH y Serve en redes con pérdidas, un problema poco frecuente con conexiones inactivas y conexiones al plano de control interrumpidas por algunos equipos intermedios.',
     de_DE:
-      'HTTPS- und Funnel-Freigaben teilen dem bereitgestellten Dienst nun mit, dass die Verbindung HTTPS ist, sodass Weiterleitungen und die CalDAV/CardDAV-Erkennung (zum Beispiel in Nextcloud) auf https://-Adressen verweisen.',
+      'Aktualisiert Tailscale auf 1.104.7. Behebt Verbindungsabbrüche bei Tailscale SSH und Serve in verlustbehafteten Netzwerken, ein seltenes Problem mit ruhenden Verbindungen und Verbindungen zur Steuerungsebene, die von manchen Middleboxes unterbrochen wurden.',
     pl_PL:
-      'Udostępnienia HTTPS i Funnel informują teraz udostępnianą usługę, że połączenie jest HTTPS, dzięki czemu przekierowania i wykrywanie CalDAV/CardDAV (na przykład w Nextcloud) wskazują adresy https://.',
+      'Aktualizuje Tailscale do 1.104.7. Naprawia przestoje połączeń Tailscale SSH i Serve w sieciach ze stratami pakietów, rzadki problem z uśpionymi połączeniami oraz połączenia z płaszczyzną sterowania zrywane przez niektóre urządzenia pośredniczące.',
     fr_FR:
-      'Les publications HTTPS et Funnel indiquent désormais au service publié que la connexion est en HTTPS, de sorte que les redirections et la découverte CalDAV/CardDAV (par exemple dans Nextcloud) pointent vers des adresses https://.',
+      'Met à jour Tailscale vers 1.104.7. Corrige les blocages de connectivité de Tailscale SSH et Serve sur les réseaux avec pertes, un problème rare avec les connexions inactives et les connexions au plan de contrôle interrompues par certains équipements intermédiaires.',
   },
   migrations: {
     up: async () => {},
