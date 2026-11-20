@@ -200,6 +200,7 @@ export type NodeStatus = {
 export const withTailscaleCli = <R>(
   effects: T.Effects,
   fn: (cli: {
+    /** Rejects failed or timed-out commands. */
     exec: (
       command: string[],
       options?: { timeout?: number },
@@ -223,25 +224,20 @@ export const withTailscaleCli = <R>(
         command: string[],
         options?: { timeout?: number },
       ) => {
-        const res = await sub.exec(command, options)
+        const res = await sub.execFail(command, options)
         return { stdout: String(res.stdout), stderr: String(res.stderr) }
       }
       return fn({
         exec,
         writeFile: (path, data) => sub.writeFile(path, data, { mode: 0o600 }),
         status: async () => {
-          const res = await sub.exec(
+          const res = await exec(
             tailscale('status', '--json', '--peers=false'),
             {
               timeout: 10_000,
             },
           )
-          if (res.exitCode !== 0) {
-            throw new Error(
-              `tailscale status failed: ${String(res.stderr).trim()}`,
-            )
-          }
-          return JSON.parse(String(res.stdout)) as NodeStatus
+          return JSON.parse(res.stdout) as NodeStatus
         },
       })
     },
@@ -291,9 +287,14 @@ export const signIn = (
       },
     )
     const after = await cli.status()
+    const encodedAuthUrl = /"AuthURL":\s*("(?:[^"\\]|\\.)*")/.exec(
+      up.stdout,
+    )?.[1]
+    const authUrl: string | null = encodedAuthUrl
+      ? JSON.parse(encodedAuthUrl)
+      : after.AuthURL || null
     return {
-      authUrl:
-        /"AuthURL":\s*"([^"]+)"/.exec(up.stdout)?.[1] || after.AuthURL || null,
+      authUrl,
       status: after,
       error: up.stderr.trim(),
     }
