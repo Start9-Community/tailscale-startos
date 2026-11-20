@@ -13,20 +13,15 @@ import {
   SOCKET,
   STATE_DIR,
   STATUS_FILE,
-  WEB_UI_PORT,
   routeHostId,
   serveActive,
   serveTarget,
+  tailscale,
   targetSchemeFor,
   type ServeStatus,
 } from './utils'
 
 const TS = `tailscale --socket=${SOCKET}`
-const tailscale = (...args: string[]): [string, ...string[]] => [
-  'tailscale',
-  `--socket=${SOCKET}`,
-  ...args,
-]
 
 export const main = sdk.setupMain(async ({ effects }) => {
   // Reactive: adding or removing a serve rewrites this list, which re-runs main and
@@ -96,22 +91,6 @@ export const main = sdk.setupMain(async ({ effects }) => {
     ready: { display: i18n('Tailscale Daemon'), fn: checkTailscaleHealth },
     requires: [],
   })
-  daemons = daemons.addDaemon('web' as never, {
-    subcontainer: sub,
-    exec: {
-      command: tailscale('web', '--listen', `0.0.0.0:${WEB_UI_PORT}`),
-    },
-    ready: {
-      display: i18n('Tailscale Admin Interface'),
-      fn: () =>
-        sdk.healthCheck.checkPortListening(effects, WEB_UI_PORT, {
-          successMessage: i18n('Admin interface is reachable'),
-          errorMessage: i18n('Admin interface is not reachable'),
-        }),
-    },
-    requires: ['tailscaled'],
-  })
-
   // Resolve each saved serve to its live target and stand up one socat forwarder
   // per route (tailscale serve only proxies to localhost, so the forwarder bridges
   // localhost:<localPort> -> the target's LXC-bridge <host>:<port>). The target is
@@ -164,7 +143,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
     applicable.push({ route, scheme, fwId })
   }
 
-  // Login happens out-of-band in the admin UI, so wait for the node to reach
+  // Sign-in happens out-of-band, through the Sign In actions, so wait for the node to reach
   // `Running`, then record `tailscale status` to the volume — even with no serves
   // configured — so the host side can read the MagicDNS name for the url-v0 exports
   // right after sign-in (no serve add needed to trigger it). The in-place `>` write

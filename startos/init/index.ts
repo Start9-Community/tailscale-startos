@@ -6,6 +6,7 @@ import { sdk } from '../sdk'
 import { registerUrlPlugin } from '../plugin/register'
 import { syncExportedUrls } from '../plugin/sync'
 import { versionGraph } from '../versions'
+import { taskSignIn } from './taskSignIn'
 
 export const init = sdk.setupInit(
   restoreInit,
@@ -15,6 +16,7 @@ export const init = sdk.setupInit(
   dependencies,
   registerUrlPlugin,
   syncExportedUrls,
+  taskSignIn,
 )
 
 export const uninit = sdk.setupUninit(versionGraph)
