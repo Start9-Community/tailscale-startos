@@ -22,6 +22,7 @@
 2. Open the link it shows, or scan its QR code from your phone, and sign in to your Tailscale account. Approve the device if your tailnet asks you to.
    - **Using Headscale or another self-hosted control server?** Enter its URL in **Login Server**.
    - **Prefer an auth key?** Generate one in the [Tailscale admin console](https://login.tailscale.com/admin/settings/keys) and run **Sign In with Auth Key** instead. No browser is needed.
+   - **Waiting for Approval?** Approve the existing device in your control server's admin console. Repeating either sign-in action leaves that approval pending and shows the instructions again; run **Log Out** first to switch accounts.
 3. Run **Node Status** to confirm the node is `Running` and to see its MagicDNS name and Tailscale IPs.
 4. The node joins your tailnet as **startos** by default. Rename it from the [Tailscale admin console](https://login.tailscale.com/admin/machines) if you want a different MagicDNS name for the addresses you publish.
 5. If you plan to use HTTPS or Funnel serves, enable **HTTPS Certificates** for your tailnet in the [Tailscale admin console](https://login.tailscale.com/admin/dns) (DNS → HTTPS). Without it, an HTTPS or Funnel serve will not come up, and the **Tailscale Serve** health check names the serve that is not active.

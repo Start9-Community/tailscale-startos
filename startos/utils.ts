@@ -257,6 +257,7 @@ cat "$out"; cat "$err" >&2`
 /**
  * Sign the node in with `tailscale up --reset`, returning the sign-in URL it
  * printed (if any), the node's state afterwards, and anything it wrote to stderr.
+ * Preserves the node's identity while device approval is pending.
  */
 export const signIn = (
   effects: T.Effects,
@@ -270,6 +271,9 @@ export const signIn = (
           'This node is already signed in. Run Log Out first to sign it in to a different account.',
         ),
       )
+    }
+    if (before.BackendState === 'NeedsMachineAuth') {
+      return { authUrl: null, status: before, error: '' }
     }
     const args = ['up', '--reset', '--json', '--timeout=60s']
     if (opts.loginServer) args.push(`--login-server=${opts.loginServer}`)

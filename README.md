@@ -142,7 +142,7 @@ Runs `tailscale up --reset --json`, plus `--login-server=<url>` when given, and 
 - **`--reset` returns every node preference not named on the command line to its default**, which is what lets a node that was signed in to another control server, or carries other non-default preferences, sign in again without `tailscale up`'s "requires mentioning all non-default flags" error.
 - A node that still holds a key (expired, or signed in before) gets `--force-reauth`, so it is asked to sign in again.
 - **The CLI is stopped once it prints the URL**; the pending sign-in lives in `tailscaled` and completes when the owner approves it. If the URL was already pending, it is read back from `tailscale status`.
-- Returns "Signed In" if the node reached Running straight away, or "Waiting for Approval" if the tailnet requires device approval.
+- Returns "Signed In" if the node reached Running straight away, or "Waiting for Approval" if the tailnet requires device approval. Repeating either sign-in action while approval is pending returns the approval instructions without restarting authentication; run Log Out first to change accounts.
 
 ### Sign In with Auth Key
 
