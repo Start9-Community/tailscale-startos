@@ -9,7 +9,7 @@
 ## What you get on StartOS
 
 - A signed-in Tailscale node, reachable from your other Tailscale devices by its MagicDNS name.
-- Tailscale's own web interface, for signing in and managing the node.
+- **Sign In**, **Sign In with Auth Key**, **Node Status** and **Log Out** actions, to sign the node in to Tailscale or a self-hosted control server such as Headscale and check on it.
 - A **Serve On Tailscale** button on every other installed service's interface list, so you can expose those services through this node — privately over HTTPS, HTTP, or raw TCP, or publicly via Funnel.
 
 ## Notes
@@ -18,10 +18,13 @@
 
 ## Getting set up
 
-1. Start the service and open its **Tailscale Admin** interface (Tailscale's web UI).
-2. Sign the node in to your tailnet there, following Tailscale's prompts. Tailscale opens its sign-in page in a new browser tab — if nothing happens when you click **Log In**, allow pop-ups for this page (or open the login link it shows). The same screen displays the node's status and MagicDNS name once it connects.
-3. The node joins your tailnet as **startos** by default. Rename it from the [Tailscale admin console](https://login.tailscale.com/admin/machines) if you want a different MagicDNS name for the addresses you publish.
-4. If you plan to use HTTPS or Funnel serves, enable **HTTPS Certificates** for your tailnet in the [Tailscale admin console](https://login.tailscale.com/admin/dns) (DNS → HTTPS). Without it, an HTTPS or Funnel serve will not come up, and the **Tailscale Serve** health check names the serve that is not active.
+1. Start the service, then run the **Sign In** action (the install task points to it).
+2. Open the link it shows, or scan its QR code from your phone, and sign in to your Tailscale account. Approve the device if your tailnet asks you to.
+   - **Using Headscale or another self-hosted control server?** Enter its URL in **Login Server**.
+   - **Prefer an auth key?** Generate one in the [Tailscale admin console](https://login.tailscale.com/admin/settings/keys) and run **Sign In with Auth Key** instead. No browser is needed.
+3. Run **Node Status** to confirm the node is `Running` and to see its MagicDNS name and Tailscale IPs.
+4. The node joins your tailnet as **startos** by default. Rename it from the [Tailscale admin console](https://login.tailscale.com/admin/machines) if you want a different MagicDNS name for the addresses you publish.
+5. If you plan to use HTTPS or Funnel serves, enable **HTTPS Certificates** for your tailnet in the [Tailscale admin console](https://login.tailscale.com/admin/dns) (DNS → HTTPS). Without it, an HTTPS or Funnel serve will not come up, and the **Tailscale Serve** health check names the serve that is not active.
 
 ## Using Tailscale
 
@@ -38,3 +41,7 @@
 If you reinstall a service you were serving, its Tailscale address comes back on its own once the service is installed again. Serving it again with the same mode and port just refreshes it.
 
 > Adding or removing a serve briefly restarts this node; it reconnects on its own.
+
+### Signing out or switching accounts
+
+Run **Log Out**, then **Sign In** again, to the same account or a different one. While the node is signed out, nothing it serves is reachable. Signing in again resets node preferences such as advertised routes or an exit node to their defaults; this package has no action that sets them.

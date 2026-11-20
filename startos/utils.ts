@@ -1,4 +1,5 @@
 import { T, utils } from '@start9labs/start-sdk'
+import { i18n } from './i18n'
 import { sdk } from './sdk'
 import { STATUS_FILE_SUBPATH } from './fileModels/status'
 import {
@@ -89,12 +90,11 @@ export const serveTarget = (
 }
 
 // Runtime paths inside the container. The tailscaled socket lives on the `main`
-// volume so the daemon, the `tailscale web` UI, and the serve-apply oneshot all
-// share it across subcontainers.
+// volume so the serve-apply oneshots and the actions' temporary subcontainers can
+// all reach it.
 export const STATE_DIR = '/var/lib/tailscale'
 export const SOCKET = `${STATE_DIR}/tailscaled.sock`
 export const STATUS_FILE = `${STATE_DIR}${STATUS_FILE_SUBPATH}`
-export const WEB_UI_PORT = 8240
 
 /** Default device name set before tailscaled registers (user-overridable in the Tailscale console). */
 export const DEVICE_NAME = 'startos'
@@ -174,3 +174,219 @@ export function exportPort(
   const defaultPort = serveUsesTailnetTls(mode) ? 443 : 80
   return externalPort === defaultPort ? null : externalPort
 }
+
+/** `tailscale --socket=<SOCKET> <args>`, as an exec command. */
+export const tailscale = (...args: string[]): [string, ...string[]] => [
+  'tailscale',
+  `--socket=${SOCKET}`,
+  ...args,
+]
+
+/** The parts of `tailscale status --json` the actions read. */
+export type NodeStatus = {
+  BackendState?: string
+  HaveNodeKey?: boolean
+  AuthURL?: string
+  TailscaleIPs?: string[] | null
+  Self?: { HostName?: string; DNSName?: string } | null
+  CurrentTailnet?: { Name?: string } | null
+  Health?: string[] | null
+}
+
+/**
+ * Run `fn` against the running tailscaled, from a temporary subcontainer that
+ * shares the volume holding its control socket.
+ */
+export const withTailscaleCli = <R>(
+  effects: T.Effects,
+  fn: (cli: {
+    exec: (
+      command: string[],
+      options?: { timeout?: number },
+    ) => Promise<{ stdout: string; stderr: string }>
+    writeFile: (path: string, data: string) => Promise<void>
+    status: () => Promise<NodeStatus>
+  }) => Promise<R>,
+) =>
+  sdk.SubContainer.withTemp(
+    effects,
+    { imageId: 'tailscale' },
+    sdk.Mounts.of().mountVolume({
+      volumeId: 'main',
+      subpath: null,
+      mountpoint: STATE_DIR,
+      readonly: false,
+    }),
+    'tailscale-cli',
+    async (sub) => {
+      const exec = async (
+        command: string[],
+        options?: { timeout?: number },
+      ) => {
+        const res = await sub.exec(command, options)
+        return { stdout: String(res.stdout), stderr: String(res.stderr) }
+      }
+      return fn({
+        exec,
+        writeFile: (path, data) => sub.writeFile(path, data, { mode: 0o600 }),
+        status: async () => {
+          const res = await sub.exec(
+            tailscale('status', '--json', '--peers=false'),
+            {
+              timeout: 10_000,
+            },
+          )
+          if (res.exitCode !== 0) {
+            throw new Error(
+              `tailscale status failed: ${String(res.stderr).trim()}`,
+            )
+          }
+          return JSON.parse(String(res.stdout)) as NodeStatus
+        },
+      })
+    },
+  )
+
+// `tailscale up` blocks until the node is Running, so it runs in the background
+// and is stopped once it has printed a sign-in URL or a device-approval state.
+const UP_SCRIPT = `out=$(mktemp); err=$(mktemp)
+"$@" >"$out" 2>"$err" &
+pid=$!
+i=0
+while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 30 ] && ! grep -qE '"AuthURL"|"NeedsMachineAuth"' "$out"; do sleep 1; i=$((i+1)); done
+kill "$pid" 2>/dev/null
+wait "$pid"
+cat "$out"; cat "$err" >&2`
+
+/**
+ * Sign the node in with `tailscale up --reset`, returning the sign-in URL it
+ * printed (if any), the node's state afterwards, and anything it wrote to stderr.
+ */
+export const signIn = (
+  effects: T.Effects,
+  opts: { authKey?: string; loginServer: string | null },
+) =>
+  withTailscaleCli(effects, async (cli) => {
+    const before = await cli.status()
+    if (before.BackendState === 'Running') {
+      throw new Error(
+        i18n(
+          'This node is already signed in. Run Log Out first to sign it in to a different account.',
+        ),
+      )
+    }
+    const args = ['up', '--reset', '--json', '--timeout=60s']
+    if (opts.loginServer) args.push(`--login-server=${opts.loginServer}`)
+    if (opts.authKey) {
+      await cli.writeFile('/tmp/auth-key', opts.authKey)
+      args.push('--auth-key=file:/tmp/auth-key')
+    } else if (before.HaveNodeKey) {
+      // An expired or signed-out node still holds a key; without this it is not asked to sign in again.
+      args.push('--force-reauth')
+    }
+    const up = await cli.exec(
+      ['sh', '-c', UP_SCRIPT, 'sh', ...tailscale(...args)],
+      {
+        timeout: 45_000,
+      },
+    )
+    const after = await cli.status()
+    return {
+      authUrl:
+        /"AuthURL":\s*"([^"]+)"/.exec(up.stdout)?.[1] || after.AuthURL || null,
+      status: after,
+      error: up.stderr.trim(),
+    }
+  })
+
+const statusField = (name: string, value: string | null | undefined) => ({
+  type: 'single' as const,
+  name,
+  description: null,
+  value: value || i18n('None'),
+  copyable: !!value,
+  qr: false,
+  masked: false,
+  launchable: false,
+})
+
+/** The node's state, names, and addresses, as an action result group. */
+export const statusGroup = (status: NodeStatus) => ({
+  type: 'group' as const,
+  value: [
+    statusField(i18n('State'), status.BackendState),
+    statusField(i18n('Tailnet'), status.CurrentTailnet?.Name),
+    statusField(i18n('Device Name'), status.Self?.HostName),
+    statusField(
+      i18n('MagicDNS Name'),
+      status.Self?.DNSName?.replace(/\.+$/, ''),
+    ),
+    statusField(i18n('Tailscale IPs'), status.TailscaleIPs?.join(', ')),
+  ],
+})
+
+/** What a Sign In action shows for the outcome of `signIn`. */
+export const signInResult = ({
+  authUrl,
+  status,
+  error,
+}: Awaited<ReturnType<typeof signIn>>) => {
+  if (status.BackendState === 'Running') {
+    return {
+      version: '1' as const,
+      title: i18n('Signed In'),
+      message: i18n('This node is signed in to your tailnet.'),
+      result: statusGroup(status),
+    }
+  }
+  if (status.BackendState === 'NeedsMachineAuth') {
+    return {
+      version: '1' as const,
+      title: i18n('Waiting for Approval'),
+      message: i18n(
+        'This node is signed in but needs approval before it joins your tailnet. Approve it in your tailnet’s admin console (Machines), then run Node Status to confirm.',
+      ),
+      result: null,
+    }
+  }
+  if (authUrl) {
+    return {
+      version: '1' as const,
+      title: i18n('Sign In to Tailscale'),
+      message: i18n(
+        'Open this link, or scan it from your phone, and sign in to your Tailscale account. The node joins your tailnet once you approve it; run Node Status to confirm.',
+      ),
+      result: {
+        type: 'single' as const,
+        value: authUrl,
+        copyable: true,
+        qr: true,
+        masked: false,
+        launchable: true,
+      },
+    }
+  }
+  throw new Error(
+    i18n('Tailscale did not sign in: ${error}', {
+      error: error || status.BackendState || i18n('no response'),
+    }),
+  )
+}
+
+/** The optional control-server field both Sign In actions take. */
+export const loginServerField = () =>
+  sdk.Value.text({
+    name: i18n('Login Server'),
+    description: i18n(
+      'Leave blank to sign in to Tailscale. To use a self-hosted control server such as Headscale, enter its URL.',
+    ),
+    required: false,
+    default: null,
+    placeholder: 'https://headscale.example.com',
+    patterns: [
+      {
+        regex: '^https?://[^\\s]+$',
+        description: i18n('Must be an http:// or https:// URL'),
+      },
+    ],
+  })

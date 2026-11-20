@@ -47,7 +47,9 @@ One image, built here, running a **variable number of daemons**.
 | --------------- | ------------------------------------------------- |
 | `tailscale-sub` | Every daemon and oneshot — the one to `attach` to |
 
-The fixed daemons are `tailscaled` and Tailscale's own web client. **Beyond those, one forwarder daemon and one apply oneshot are added per served route**, so the daemon set is rebuilt whenever the set of served interfaces changes.
+The fixed daemon is `tailscaled`, followed by a oneshot that records the node's status once it is signed in. **Beyond those, one forwarder daemon and one apply oneshot are added per served route**, so the daemon set is rebuilt whenever the set of served interfaces changes.
+
+**Tailscale's own web client (`tailscale web`) is not run.** On a generic Linux host it asks for no login, and its page can sign the node in to any tailnet or control server, so the package signs the node in through actions instead.
 
 **`tailscaled` runs in userspace networking mode**, without a TUN device — that is what lets it work inside a container without host network privileges. The trade is that it is a client and a serving node, not a subnet router or exit node.
 
@@ -68,7 +70,7 @@ One volume.
 | `ts-status.json`   | A oneshot   | The node's status, for the host side    |
 | _serve config_     | The actions | Which interfaces are published, and how |
 
-**The control socket lives on the volume deliberately.** The daemon, the web client, and the serve-apply steps all run as separate processes and all need to talk to `tailscaled` — putting the socket on shared storage is what lets them.
+**The control socket lives on the volume deliberately.** The serve-apply steps run as separate processes, and the actions run the `tailscale` CLI from a temporary container of their own; all of them need to talk to `tailscaled`, and putting the socket on shared storage is what lets them.
 
 **`tailscaled.state` is the node's identity.** Restoring it elsewhere reproduces the same tailnet device.
 
@@ -83,7 +85,7 @@ Two models, and one of them exists to cross a boundary.
 
 The serve config is the list of published routes: which package and interface, which mode, which ports. It is read reactively, which is what rebuilds the forwarders and re-applies the serves when a route is added or removed. Each route's target host is read reactively too, so a target that is reinstalled or re-addressed re-resolves its forwarder and gets its address row back.
 
-**The status file exists because the package's own code cannot reach `tailscaled`.** The socket is inside the container; the code that exports URLs and drives the actions runs outside it. So a oneshot waits for the node to reach a running state and writes `tailscale status` to the volume, where the host side reads the MagicDNS name from it.
+**The status file exists because the package's own code cannot reach `tailscaled` reactively.** The socket is inside the container; the code that exports URLs and raises the sign-in task runs outside it. So a oneshot waits for the node to reach a running state and writes `tailscale status` to the volume, where the host side reads the MagicDNS name and the signed-in state from it. **Log Out** rewrites it too, so the host side sees the node signed out.
 
 Two details of that are load-bearing:
 
@@ -98,13 +100,7 @@ Tailscale needs internet to reach its coordination servers and to build connecti
 
 ## Network Access and Interfaces
 
-One StartOS interface, and it is not where the interesting traffic goes.
-
-| Interface | Id    | Type | Port | Description                |
-| --------- | ----- | ---- | ---- | -------------------------- |
-| Admin     | `web` | ui   | 8240 | Tailscale's own web client |
-
-**This interface is the sign-in and management surface**, not the way served services are reached. Those are reached **over the tailnet**, at the node's MagicDNS name, and never through a StartOS address.
+None. Served services are reached **over the tailnet**, at the node's MagicDNS name, and never through a StartOS address. Signing in and checking the node happen through actions.
 
 **Serving works by forwarding, because Tailscale only serves what is on localhost.** For each route the package runs a small forwarder from a local port to the target service's bridge address, and points `tailscale serve` at that local port. It is why a route needs a daemon of its own.
 
@@ -123,9 +119,9 @@ Four modes are supported, and one of them leaves your tailnet:
 
 ## Installation and First-Run Flow
 
-Install registers the plugin and nothing else. There is no task and no credential.
+Install registers the plugin and raises an **important** task pointing to **Sign In**.
 
-**Sign-in happens in Tailscale's own web interface**, not through a StartOS action: open the admin interface, follow the link to authenticate the node against your tailnet, and it joins.
+**Sign-in happens through an action**, with the service running: **Sign In** returns a link to open or scan, and the node joins once the owner approves it; **Sign In with Auth Key** joins with a pre-generated key and no browser. Both take an optional login server for a self-hosted control server such as Headscale.
 
 Once the node is running, the package records its status and its MagicDNS name becomes available. From then on, **every other service's URL list gains a "Serve On Tailscale" button** — that is the plugin at work, and it is how routes are added.
 
@@ -133,11 +129,34 @@ Adding a route restarts this service, since the forwarder set is rebuilt.
 
 ## Actions
 
-Two actions, **both hidden**.
+Four visible actions manage the node; two hidden ones manage serves.
 
-They do not appear in this service's Actions tab, because neither is meant to be run from here: they are invoked from the StartOS URL table of whichever service you are publishing.
+The node actions run the `tailscale` CLI in a temporary container that mounts the `main` volume and talks to the running `tailscaled` over its socket, so all four need the service running.
 
-### Serve On Tailscale
+### Sign In
+
+Runs `tailscale up --reset --json`, plus `--login-server=<url>` when given, and returns the sign-in URL it prints — copyable, as a QR code, and launchable.
+
+- **Input:** an optional login server (an `http(s)://` URL). Blank means Tailscale's own control server.
+- **Refuses when the node is already signed in**; run Log Out first.
+- **`--reset` returns every node preference not named on the command line to its default**, which is what lets a node that was signed in to another control server, or carries other non-default preferences, sign in again without `tailscale up`'s "requires mentioning all non-default flags" error.
+- A node that still holds a key (expired, or signed in before) gets `--force-reauth`, so it is asked to sign in again.
+- **The CLI is stopped once it prints the URL**; the pending sign-in lives in `tailscaled` and completes when the owner approves it. If the URL was already pending, it is read back from `tailscale status`.
+- Returns "Signed In" if the node reached Running straight away, or "Waiting for Approval" if the tailnet requires device approval.
+
+### Sign In with Auth Key
+
+The same, with `--auth-key=file:<path>`. The key is masked in the form and written to a file in the temporary container, never onto the command line. The node joins without a browser; device approval may still apply.
+
+### Node Status
+
+Shows `tailscale status --json --peers=false`: state, tailnet, device name, MagicDNS name, Tailscale IPs, a pending sign-in link if there is one, and tailscaled's health warnings.
+
+### Log Out
+
+Runs `tailscale logout` (the node key is expired and the node leaves the tailnet), rewrites the status file, and restarts the service, so serves are re-applied after the next sign-in. Warns before it runs.
+
+### Serve On Tailscale (hidden)
 
 Adds a route: publishes one interface of one service onto the tailnet, in the chosen mode and on the chosen port.
 
@@ -148,7 +167,7 @@ Adds a route: publishes one interface of one service onto the tailnet, in the ch
 - **Adding a serve that already exists refreshes it** rather than failing — the case after the target service was reinstalled.
 - **A port held by a route whose target has been uninstalled is released** to the new serve; a port held by a live route is refused.
 
-### Stop Tailscale Serve
+### Stop Tailscale Serve (hidden)
 
 Removes a route.
 
@@ -156,22 +175,29 @@ Removes a route.
 - **What it changes:** the serve config; the forwarder and its serve rule go away on the restart.
 - **Warns before it runs:** devices on the tailnet lose the interface, and a Funnel serve comes off the public internet.
 
-Both are hidden rather than absent, so the platform can drive them while a user never has to find them here.
+The two serve actions are hidden rather than absent, so the platform can drive them while a user never has to find them in this service's Actions tab.
+
+### Not offered
+
+Node preferences beyond the login server — advertising subnet routes or an exit node, using an exit node, Tailscale SSH — have no action. Any already set stay in effect until the next **Sign In**, whose `--reset` returns them to their defaults. Device names, key expiry, and approval are managed from the tailnet's admin console as on any other device.
 
 ## Tasks
 
-None. This package raises no tasks, so the service is never held on a prompt and its ordinary controls are always available.
+| Task    | Severity  | Raised when                                                              |
+| ------- | --------- | ------------------------------------------------------------------------ |
+| Sign In | important | The recorded status is not `Running` — a fresh install, or after Log Out |
+
+It is cleared once the status file records `Running`. It never blocks the service, which must be running for Sign In to work.
 
 ## Health Checks
 
-Three named checks, plus one hidden check per route.
+Two named checks, plus one hidden check per route.
 
-| Check         | Displayed as                | Method                                                              |
-| ------------- | --------------------------- | ------------------------------------------------------------------- |
-| `tailscaled`  | "Tailscale Daemon"          | The daemon's own reported state                                     |
-| `web`         | "Tailscale Admin Interface" | Port 8240 is listening                                              |
-| `serve`       | "Tailscale Serve"           | tailscaled's live serve config carries every resolvable saved route |
-| `fwd-<route>` | — internal                  | That route's forwarder is listening                                 |
+| Check         | Displayed as       | Method                                                              |
+| ------------- | ------------------ | ------------------------------------------------------------------- |
+| `tailscaled`  | "Tailscale Daemon" | The daemon's own reported state                                     |
+| `serve`       | "Tailscale Serve"  | tailscaled's live serve config carries every resolvable saved route |
+| `fwd-<route>` | — internal         | That route's forwarder is listening                                 |
 
 **The daemon check reports "waiting for login" as a success, not a failure**, and that is right: a node that has never been signed in is working correctly, it just has not been told who it belongs to yet. Only an unreachable or unparseable daemon fails.
 
@@ -196,7 +222,7 @@ A restored instance comes back signed in, with its routes intact, and re-resolve
 3. **Funnel mode publishes to the public internet**, on Tailscale's permitted ports only.
 4. **Every route costs a forwarder daemon**, and adding or removing one restarts the service and re-applies all routes.
 5. **A route's target must expose an HTTP or HTTPS endpoint** for the web modes; anything else has to use raw TCP.
-6. **Sign-in is out of band**, in Tailscale's own interface — there is no StartOS action for it.
+6. **Sign-in is through actions only**, and Tailscale's web interface is not available. Node preferences other than the login server (routes, exit node, Tailscale SSH) have no action.
 7. **The backup reproduces the device identity**, so never restore two copies.
 8. **Tailscale's coordination servers are a third party** your devices depend on to find each other.
 9. **A route whose target service was uninstalled stays saved** — it serves nothing and has no address row to remove it from — until the service is reinstalled (its row returns) or another serve takes its port.
@@ -220,15 +246,18 @@ file_models:
   - ts-status.json # written in-container, read on the host for the MagicDNS name
 startos_managed_env_vars: []
 dependencies: [] # but every other package is a potential serve target
-interfaces:
-  web: { type: ui, port: 8240 } # Tailscale's own web client — sign-in and management
+interfaces: [] # tailscale web is not run; served services are reached over the tailnet
 actions:
+  - sign-in # tailscale up --reset --json [--login-server]; returns the AuthURL
+  - sign-in-auth-key # the same with --auth-key=file:…
+  - node-status # tailscale status --json --peers=false
+  - log-out # tailscale logout, rewrite ts-status.json, restart
   - add-serve-from-url # hidden; invoked from another service's URL table
   - remove-serve-from-url # hidden; invoked from the exported row
-tasks: []
+tasks:
+  - sign-in # important; while ts-status.json does not record Running
 health_checks:
   - tailscaled # "waiting for login" reports success, not failure
-  - web
   - serve # every resolvable saved route is in tailscaled's serve config; disabled while none resolves or the node is signed out
   - fwd-<route> # internal (display: null)
 ```
